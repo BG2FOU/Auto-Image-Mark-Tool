@@ -179,3 +179,19 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# Local-only user photos, signature, and licensed fonts
+/data/DSC_0168.NEF
+/data/DSC_0168.jpg
+/data/DSC_0168_marked.jpg
+/data/NAME.png
+/data/TrajanPro-Bold.otf
+/data/FangZhengShengShiKaiShuJianTi-Da.ttf
+/tests/fixtures/private/
+/tools/
+/demo-output/
+
+# Keep the reviewed PyInstaller spec trackable
+!/packaging/AutoImageMarkTool.spec
+!/packaging/GpsPrototype.spec
+!/packaging/GpsPrototypeOnefile.spec

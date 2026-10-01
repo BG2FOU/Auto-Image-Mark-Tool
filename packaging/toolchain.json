@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "python": {
+    "version": "3.12.3",
+    "architecture": "x64",
+    "installer": "python-3.12.3-amd64.exe",
+    "url": "https://www.python.org/ftp/python/3.12.3/python-3.12.3-amd64.exe",
+    "sha256": "edfc6c84dc47eebd4fae9167e96ff5d9c27f8abaa779ee1deab9c3d964d0de3c",
+    "expected_executable": "python.exe",
+    "install_dir": "system_or_managed_environment",
+    "license_url": "https://docs.python.org/3/license.html"
+  },
+  "pip": "24.0",
+  "pip_tools": "7.6.1",
+  "exiftool": {
+    "version": "13.59",
+    "platform": "windows-x64",
+    "url": "https://sourceforge.net/projects/exiftool/files/exiftool-13.59_64.zip/download",
+    "sha256": "44b512b25af500724ba579d0a53c8fc5851628b692dd5e5d94ae4a15c2cba9ec",
+    "archive_name": "exiftool-13.59_64.zip",
+    "install_dir": "tools/exiftool",
+    "executable": "exiftool.exe",
+    "support_dir": "exiftool_files",
+    "license_url": "https://exiftool.org/",
+    "checksum_url": "https://exiftool.org/checksums-13.59.txt"
+  },
+  "bootstrap_packages": {
+    "pip": {
+      "version": "24.0",
+      "url": "https://files.pythonhosted.org/packages/8a/6a/19e9fe04fca059ccf770861c7d5721ab4c2aebc539889e97c7977528a53b/pip-24.0-py3-none-any.whl",
+      "sha256": "ba0d021a166865d2265246961bec0152ff124de910c5cc39f1156ce3fa7c69dc",
+      "install_dir": ".venv",
+      "license_url": "https://pip.pypa.io/en/stable/development/license/"
+    },
+    "pip_tools": {
+      "version": "7.6.1",
+      "url": "https://files.pythonhosted.org/packages/f9/88/3b050c2b3948e8a090cfbd4f04a43359566f9974d66692826d42f4fe5357/pip_tools-7.6.1-py3-none-any.whl",
+      "sha256": "6111c8b4b07fd14b7223ca921485b0e96cf66e20bf94da95eeed9845f510cb8f",
+      "install_dir": ".venv",
+      "license_url": "https://github.com/jazzband/pip-tools/blob/main/LICENSE"
+    }
+  },
+  "exiftool_linux": {
+    "version": "13.59",
+    "platform": "linux-perl-source",
+    "source_tag": "https://github.com/exiftool/exiftool/tree/13.59",
+    "tag_commit": "2200871d9cef988051d2a99d67df3bda6cbb30a8",
+    "archive_url": "https://codeload.github.com/exiftool/exiftool/tar.gz/refs/tags/13.59",
+    "archive_sha256": "87d3317882fdae9cb4dcfe57a96a378d0132ffc02c731315bf128b19ddcf7aac",
+    "executable": "tools/exiftool-13.59/exiftool",
+    "license_url": "https://github.com/exiftool/exiftool/blob/13.59/LICENSE"
+  }
+}

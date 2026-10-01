@@ -1,2 +1,19 @@
-# Auto detect text files and perform LF normalization
+# Normalize source files while preserving binary assets
 * text=auto
+*.py text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.lock text eol=lf
+*.ps1 text eol=crlf
+*.png binary
+*.PNG binary
+*.jpg binary
+*.JPG binary
+*.jpeg binary
+*.JPEG binary
+*.nef binary
+*.NEF binary
+*.ttf binary
+*.otf binary

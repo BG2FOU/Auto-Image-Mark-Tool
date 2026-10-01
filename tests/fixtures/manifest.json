@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "path_base": "repository_root",
+  "assets": [
+    {
+      "path": "data/NAME.png",
+      "role": "default_signature",
+      "sha256": "d86e885e86c0977a2d874aacb16671be11f3bde55fdb23139f6e4aadcf330777",
+      "distribution": "local_only"
+    },
+    {
+      "path": "data/TrajanPro-Bold.otf",
+      "role": "default_latin_font",
+      "sha256": "60c3185c2919d8fdae1ccc5c334c548071dd31700121825c803c2903369dbed5",
+      "distribution": "local_only"
+    },
+    {
+      "path": "data/FangZhengShengShiKaiShuJianTi-Da.ttf",
+      "role": "default_chinese_font",
+      "sha256": "e654df886e997e9847744583fa5a1ad78930bfde72c358500e4ed4518f49bc76",
+      "distribution": "local_only"
+    },
+    {
+      "path": "data/DSC_0168.jpg",
+      "role": "local_original_jpeg",
+      "camera_model": "NIKON Z 5",
+      "sha256": "f3f5e3e3b22d3361d66129da2c8bc73e657be9d07e9872bcd377e6bf9aba6ab3",
+      "distribution": "local_only"
+    },
+    {
+      "path": "data/DSC_0168.NEF",
+      "role": "local_original_nef",
+      "camera_model": "NIKON Z 5",
+      "sha256": "35ab3ce5c99b023f5c3d7013a6d9aa3f0231a0e54eacf3ac22c8aa96f7d51e49",
+      "distribution": "local_only"
+    },
+    {
+      "path": "data/DSC_0168_marked.jpg",
+      "role": "local_marked_reference_jpeg",
+      "camera_model": "NIKON Z 5",
+      "sha256": "1b8bdf25ed058a200c7b52c48865f02c274a6631d8765c45806dbc42ea31fd58",
+      "distribution": "local_only"
+    }
+  ]
+}
