@@ -37,6 +37,14 @@ jobs:
           mkdir -p tools
           tar -xzf /tmp/exiftool-13.59.tar.gz -C tools
           test "$(perl tools/exiftool-13.59/exiftool -ver)" = '13.59'
+      - name: Install declared Qt runtime libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 libgl1 libfontconfig1 libfreetype6 libglib2.0-0t64 \
+            libdbus-1-3 libx11-6 libx11-xcb1 libxkbcommon0 libxkbcommon-x11-0 \
+            libxcb1 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xfixes0 libxcb-xkb1
       - name: Build and smoke Linux DEB
         run: .venv/bin/python scripts/build_gps_gui_deb.py
         env:
