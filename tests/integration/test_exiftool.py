@@ -104,6 +104,20 @@ def test_real_nikon_jpeg_copy_preserves_pixels(
 
 
 @pytest.mark.raw
+def test_nikon_nef_batch_remains_blocked_without_viewer_check(
+    tmp_path: Path, tool: ExifTool, pytestconfig: pytest.Config
+) -> None:
+    source = _sample(ROOT / "data/DSC_0168.NEF", pytestconfig)
+    item = PhotoItem(source, source.parent, coordinates=(24.478123, 118.085456))
+    with pytest.raises(ValueError, match="independent Nikon viewer approval"):
+        build_plan(
+            BatchJob((item,), preset("location_only"), tmp_path / "output"),
+            _registry(tool),
+        )
+    assert not (tmp_path / "output").exists()
+
+
+@pytest.mark.raw
 def test_nikon_nef_diagnostic_copy_preserves_raw_and_preview_pixels(
     tmp_path: Path, tool: ExifTool, pytestconfig: pytest.Config
 ) -> None:
@@ -114,6 +128,11 @@ def test_nikon_nef_diagnostic_copy_preserves_raw_and_preview_pixels(
     fields = ("-Make", "-Model", "-SerialNumber", "-ShutterCount", "-LensModel")
     before_metadata = tool.metadata(source, *fields)
     before_metadata.pop("SourceFile", None)
+    before_makernotes = tool.metadata(source, "-MakerNotes:all")
+    before_makernotes.pop("SourceFile", None)
+    before_makernotes.pop("PreviewIFD:PreviewImageStart", None)
+    before_validation = tool.metadata(source, "-validate", "-warning", "-error")
+    before_validation.pop("SourceFile", None)
 
     def fingerprint(path: Path) -> tuple[object, bytes, bytes]:
         with rawpy.imread(str(path)) as raw:
@@ -130,7 +149,15 @@ def test_nikon_nef_diagnostic_copy_preserves_raw_and_preview_pixels(
     after = fingerprint(candidate)
     after_metadata = tool.metadata(candidate, *fields)
     after_metadata.pop("SourceFile", None)
+    after_makernotes = tool.metadata(candidate, "-MakerNotes:all")
+    after_makernotes.pop("SourceFile", None)
+    # ExifTool may relocate the embedded preview; its decoded pixels are checked above.
+    after_makernotes.pop("PreviewIFD:PreviewImageStart", None)
+    after_validation = tool.metadata(candidate, "-validate", "-warning", "-error")
+    after_validation.pop("SourceFile", None)
     assert before == after
     assert before_metadata == after_metadata
+    assert before_makernotes == after_makernotes
+    assert before_validation == after_validation
     assert sha256(source.read_bytes()).hexdigest() == source_hash
     # Independent Nikon viewer approval is still required before batch NEF output is enabled.

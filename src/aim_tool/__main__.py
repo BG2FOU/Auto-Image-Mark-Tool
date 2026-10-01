@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
+from pathlib import Path
 
 from aim_tool import __version__
 
@@ -11,7 +12,19 @@ from aim_tool import __version__
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="aim-tool")
     parser.add_argument("--version", action="version", version=__version__)
-    parser.parse_args(argv)
+    parser.add_argument(
+        "--self-test", action="store_true", help="Run an offline GPS GUI smoke test"
+    )
+    parser.add_argument("--report", type=Path, help="Write the self-test result as JSON")
+    args = parser.parse_args(argv)
+    if args.self_test:
+        if args.report is None:
+            parser.error("--self-test requires --report")
+        from aim_tool.self_test import run_self_test
+
+        return run_self_test(args.report)
+    if args.report is not None:
+        parser.error("--report requires --self-test")
 
     from aim_tool.app import run_gui
 

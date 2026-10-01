@@ -195,3 +195,5 @@ cython_debug/
 !/packaging/AutoImageMarkTool.spec
 !/packaging/GpsPrototype.spec
 !/packaging/GpsPrototypeOnefile.spec
+!/packaging/GpsGui.spec
+!/packaging/GpsGuiOnefile.spec

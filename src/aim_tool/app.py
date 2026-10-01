@@ -1,18 +1,16 @@
-"""Minimal Qt bootstrap; workflow UI is added in S7."""
+"""Qt bootstrap for the local GPS workflow."""
 
 from __future__ import annotations
 
 import sys
 
-from PySide6.QtWidgets import QApplication, QLabel, QMainWindow
+from PySide6.QtWidgets import QApplication, QMainWindow
+
+from aim_tool.ui.gps_window import GpsWindow
 
 
 def create_main_window() -> QMainWindow:
-    window = QMainWindow()
-    window.setWindowTitle("Auto Image Mark Tool")
-    window.setCentralWidget(QLabel("Auto Image Mark Tool"))
-    window.resize(800, 500)
-    return window
+    return GpsWindow()
 
 
 def run_gui() -> int:
