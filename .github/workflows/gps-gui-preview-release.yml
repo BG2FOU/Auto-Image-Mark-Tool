@@ -1,0 +1,100 @@
+name: GPS GUI preview release
+
+on:
+  workflow_dispatch:
+    inputs:
+      windows_run_id:
+        description: Successful GPS GUI Windows build run from this commit
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  linux-deb:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12.3'
+      - name: Install locked dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install pip==24.0
+          .venv/bin/python -m pip install --require-hashes -r requirements-dev.lock
+          .venv/bin/python -m pip install --no-deps --no-build-isolation -e .
+          .venv/bin/python -m pip check
+      - name: Fetch pinned Linux ExifTool
+        run: |
+          curl --fail --location --retry 3 \
+            https://codeload.github.com/exiftool/exiftool/tar.gz/refs/tags/13.59 \
+            --output /tmp/exiftool-13.59.tar.gz
+          echo '87d3317882fdae9cb4dcfe57a96a378d0132ffc02c731315bf128b19ddcf7aac  /tmp/exiftool-13.59.tar.gz' | sha256sum --check
+          mkdir -p tools
+          tar -xzf /tmp/exiftool-13.59.tar.gz -C tools
+          test "$(perl tools/exiftool-13.59/exiftool -ver)" = '13.59'
+      - name: Build and smoke Linux DEB
+        run: .venv/bin/python scripts/build_gps_gui_deb.py
+        env:
+          QT_QPA_PLATFORM: offscreen
+      - name: Upload Linux DEB
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: AutoImageMarkGpsGui-linux-amd64
+          path: dist/auto-image-mark-gps-gui_0.2.0~rc1_amd64.deb
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    needs: linux-deb
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      WINDOWS_RUN_ID: ${{ inputs.windows_run_id }}
+      RELEASE_TAG: v0.2.0-rc.1
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Verify source and Windows build
+        run: |
+          test "$GITHUB_REF" = 'refs/heads/main'
+          test "$(PYTHONPATH=src python3 -c 'from aim_tool import __version__; print(__version__)')" = '0.2.0rc1'
+          test "$(gh run view "$WINDOWS_RUN_ID" --json conclusion --jq .conclusion)" = 'success'
+          test "$(gh run view "$WINDOWS_RUN_ID" --json headSha --jq .headSha)" = "$GITHUB_SHA"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release already exists: $RELEASE_TAG" >&2
+            exit 1
+          fi
+      - name: Gather and hash release assets
+        run: |
+          mkdir -p build/release build/windows-artifact build/linux-artifact
+          gh run download "$WINDOWS_RUN_ID" --name AutoImageMarkGpsGui-windows-x64 --dir build/windows-artifact
+          gh run download "$GITHUB_RUN_ID" --name AutoImageMarkGpsGui-linux-amd64 --dir build/linux-artifact
+          cp build/windows-artifact/AutoImageMarkGpsGui.exe build/release/AutoImageMarkGpsGui-v0.2.0-rc.1-windows-x64.exe
+          cp 'build/linux-artifact/auto-image-mark-gps-gui_0.2.0~rc1_amd64.deb' build/release/auto-image-mark-gps-gui_0.2.0-rc1_amd64.deb
+          cp packaging/GPS_GUI_THIRD_PARTY_NOTICES.md build/release/GPS_GUI_THIRD_PARTY_NOTICES.md
+          cd build/release
+          sha256sum AutoImageMarkGpsGui-v0.2.0-rc.1-windows-x64.exe auto-image-mark-gps-gui_0.2.0-rc1_amd64.deb GPS_GUI_THIRD_PARTY_NOTICES.md > SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
+      - name: Create and verify draft release
+        run: |
+          gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --draft --prerelease \
+            --title 'GPS graphical preview v0.2.0-rc.1' \
+            --notes-file docs/releases/v0.2.0-rc.1.md \
+            build/release/AutoImageMarkGpsGui-v0.2.0-rc.1-windows-x64.exe \
+            build/release/auto-image-mark-gps-gui_0.2.0-rc1_amd64.deb \
+            build/release/GPS_GUI_THIRD_PARTY_NOTICES.md \
+            build/release/SHA256SUMS.txt
+          mkdir -p build/release-check
+          gh release download "$RELEASE_TAG" --dir build/release-check
+          cd build/release-check
+          sha256sum --check SHA256SUMS.txt
+      - name: Publish release
+        run: gh release edit "$RELEASE_TAG" --draft=false
