@@ -11,6 +11,9 @@ permissions:
 jobs:
   windows-checks:
     runs-on: windows-2022
+    defaults:
+      run:
+        shell: bash
     env:
       QT_QPA_PLATFORM: offscreen
     steps:

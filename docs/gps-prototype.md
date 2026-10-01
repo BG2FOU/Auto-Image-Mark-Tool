@@ -33,3 +33,11 @@ Windows 构建需在 Windows x64、已按 `docs/plan.md` 锁定安装 `.venv`、
 ```
 
 默认只预检。`--execute` 才写入独立输出目录，保持相对路径与同名格式；已有目标和重复行会在整批开跑前拒绝。旧 GPS 高度、时间等附属字段会触发预检失败；确认替换拍摄点后可加 `--clear-auxiliary-gps` 清除旧附属信息。原片始终不写入，输出报告默认不含坐标，但文件名和路径仍可能敏感，应只留本地。用户照片、字体、签名均不进入构建包或 GitHub。
+
+## GPS 预览版安装包
+
+`v0.1.0-gps.1` 是命令行预览版，仅处理 JPG/JPEG 坐标写入；它不是计划中的完整 GUI/S9/S10 正式版本。Windows x64 下载 `AutoImageMarkGps-v0.1.0-gps.1-windows-x64.exe`，Linux Ubuntu 24.04 amd64 下载 `auto-image-mark-gps_0.1.0~gps.1_amd64.deb`。两者都离线运行并附带 ExifTool 13.59，不包含照片、签名或字体。EXE 未签名。
+
+Linux 安装后命令为 `auto-image-mark-gps`，参数与上述 Windows 命令相同。DEB 构建命令为 `.venv/bin/python scripts/build_gps_deb.py`；脚本会先构建 PyInstaller 目录包并用两张合成 JPEG 冒烟，再生成 DEB。公开版本的 Windows EXE 必须由 `.github/workflows/gps-preview-build.yml` 在原生 Windows runner 上构建并通过相同冒烟，不能以 Wine 单文件失败的本地产物替代。
+
+下载后先对照 Release 附带的 `SHA256SUMS.txt` 核验，再在自己的本地目录预检。首次执行不要加 `--execute`；确认清单与输出目录后再加该参数。NEF 坐标写入和任何格式的水印均未进入此预览版。
