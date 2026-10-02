@@ -1,0 +1,25 @@
+# 工作流与 JPEG 水印数据流
+
+当前真实组件包括 `LocationStep`、`WatermarkStep` 和 `ExportStep`。`RawDevelopStep` 是明确报错的门禁：按用户指示，水印处理暂只支持 JPG/JPEG。位置-only 的 NEF 也仍由独立 Nikon 查看器验收门禁保护。
+
+## 预检与配置快照
+
+`build_plan` 先检查整批命名、目标冲突、组件能力和顺序，位置必须先于水印，导出必须最后执行。水印预检从照片行的 `category`、`subject`、`taken_on` 和已导入的日期来源生成配置；无行级日期时读取 EXIF DateTimeOriginal，只有显式启用 `allow_create_date` 才回退 CreateDate。不会以文件修改时间或当前日期冒充拍摄日期。
+
+水印组件保存本次照片、StepSpec、最终配置及必要素材的 SHA-256 快照。预检按规范化方向后的尺寸检查字形、ICC 和布局；执行前后再次核对素材。用户替换素材后需要重新预检。JPEG 编码默认质量 95、4:4:4，可用步骤参数调整。公开模板使用 pt 单位，与显示器 DPI 无关。
+
+## 当前产物与元数据
+
+位置-only 由 ExifTool 修改临时副本，JPEG 像素不重编码。组合流程中，水印的输入是位置步骤返回的已定位副本；该副本同时作为元数据来源。水印-only 则以原片为元数据来源。
+
+渲染先应用一次 Orientation，转换到 sRGB 并编码全分辨率 JPEG。随后 `services/metadata.py` 按 `WATERMARK_TAGS` 白名单复制拍摄日期及其亚秒/时区、相机与通用镜头/曝光信息、GPS 和原有版权/作者信息。复制使用 ExifTool 的指定标签操作，未采用 `all:all`。MakerNotes、旧预览、旧缩略图、旧尺寸、旧 Orientation 和源 ICC 不在复制名单内。
+
+编码后的 Orientation 固定为 1，EXIF 尺寸取实际像素宽高，ColorSpace 标记 sRGB；实际 ICC 由图像转换产生。写后读回白名单、GPS、方向、尺寸及 ICC，确认未出现旧缩略图。水印的文本日期只用于显示，不凭空生成原片不存在的精确拍摄时间。
+
+## 事务、取消和警告
+
+每张照片在目标卷的专属临时目录运行。原片和当前产物的哈希在水印导出前后核对；验证完成后才由 `ExportStep` 以不覆盖方式提交。任一步失败或提交前取消时，本张临时目录会清理，其他照片可继续；已提交的结果保留。照片原有公共模型和组件接口保留，StepContext 只新增带默认值的照片快照和警告回调。
+
+无 ICC 的 RGB 输入会记录 sRGB 假设警告，警告进入 `ItemResult.warnings`。GPS 不完整、元数据复制异常、素材变动、缺字和布局越界会报错。GPS 不被默认写入日志或公开验收记录。字体、签名、照片及个人配置不进入 CI 或 Release。
+
+当前 S6 的 JPEG 后端已通过真实 ExifTool 与合成字体的流水线测试及本地 Nikon Z 5 样片检查。水印 GUI、作业报告、NEF 图像处理和完整应用发布仍待后续阶段；现有 GPS Release 不包含水印功能。

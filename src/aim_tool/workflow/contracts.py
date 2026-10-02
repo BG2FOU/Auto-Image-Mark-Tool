@@ -18,6 +18,8 @@ class StepContext:
     progress: Callable[[str], None]
     scratch: Path
     coordinates: tuple[float, float] | None
+    photo: PhotoItem | None = None
+    warning: Callable[[str], None] = lambda message: None
 
 
 type ParameterType = Literal["str", "int", "float", "bool", "null"]

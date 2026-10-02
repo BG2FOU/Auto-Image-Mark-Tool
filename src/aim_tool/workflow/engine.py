@@ -170,6 +170,7 @@ def run_plan(
             results.append(ItemResult(photo.id, ItemStatus.CANCELLED))
             continue
         current_step: str | None = None
+        warnings: list[str] = []
         try:
             source_stat = photo.source.stat()
             if (
@@ -190,7 +191,15 @@ def run_plan(
                         if progress is not None:
                             progress(current_photo, message)
 
-                    context = StepContext(item.target, signal, report, scratch, photo.coordinates)
+                    context = StepContext(
+                        item.target,
+                        signal,
+                        report,
+                        scratch,
+                        photo.coordinates,
+                        photo,
+                        warnings.append,
+                    )
                     artifact = planned_step.implementation.execute(
                         artifact, planned_step.spec, context
                     )
@@ -201,7 +210,12 @@ def run_plan(
                         raise WorkflowError(f"{current_step} returned an invalid artifact")
                 if signal.is_set() and artifact.kind != ImageKind.EXPORTED:
                     results.append(
-                        ItemResult(photo.id, ItemStatus.CANCELLED, current_step=current_step)
+                        ItemResult(
+                            photo.id,
+                            ItemStatus.CANCELLED,
+                            current_step=current_step,
+                            warnings=tuple(warnings),
+                        )
                     )
                 elif artifact.kind != ImageKind.EXPORTED or artifact.path != item.target:
                     results.append(
@@ -210,12 +224,26 @@ def run_plan(
                             ItemStatus.FAILED,
                             current_step=current_step,
                             error="Export component did not return the planned target",
+                            warnings=tuple(warnings),
                         )
                     )
                 else:
-                    results.append(ItemResult(photo.id, ItemStatus.SUCCESS, output=item.target))
+                    results.append(
+                        ItemResult(
+                            photo.id,
+                            ItemStatus.SUCCESS,
+                            output=item.target,
+                            warnings=tuple(warnings),
+                        )
+                    )
         except Exception as error:  # noqa: BLE001 - isolate a failed component to one item
             results.append(
-                ItemResult(photo.id, ItemStatus.FAILED, current_step=current_step, error=str(error))
+                ItemResult(
+                    photo.id,
+                    ItemStatus.FAILED,
+                    current_step=current_step,
+                    error=str(error),
+                    warnings=tuple(warnings),
+                )
             )
     return tuple(results)

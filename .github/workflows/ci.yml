@@ -62,3 +62,5 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $version = (& tools/exiftool/exiftool.exe -ver).Trim()
           if ($version -ne '13.59') { throw "Unexpected ExifTool version: $version" }
+      - name: Verify real JPG metadata and watermark pipelines
+        run: python -m pytest tests/integration/test_metadata.py tests/integration/test_pipeline.py -m 'not visual' --require-real-assets -q

@@ -75,12 +75,19 @@ def export_watermark_preview(
     target: Path,
     config: WatermarkConfig,
     resources: WatermarkResources,
+    *,
+    quality: int = 95,
+    subsampling: int = 0,
 ) -> tuple[str, ...]:
     """Export a single local JPEG preview without replacing an input or target.
 
     This S5 preview carries orientation, color and DPI, but full camera metadata
     preservation belongs to the later S6 metadata pipeline.
     """
+    if type(quality) is not int or not 1 <= quality <= 100:
+        raise ValueError("JPEG quality must be an integer from 1 to 100")
+    if type(subsampling) is not int or subsampling not in {0, 1, 2}:
+        raise ValueError("JPEG subsampling must be 0, 1 or 2")
     if target.suffix.lower() not in {".jpg", ".jpeg"}:
         raise ValueError("Watermark preview output must be JPEG")
     source = source.resolve()
@@ -95,8 +102,8 @@ def export_watermark_preview(
     with TemporaryDirectory(prefix=".aim-mark-", dir=target.parent) as name:
         staged = Path(name) / target.name
         options: dict[str, object] = {
-            "quality": 95,
-            "subsampling": 0,
+            "quality": quality,
+            "subsampling": subsampling,
             "icc_profile": prepared.srgb_icc,
         }
         orientation = Image.Exif()

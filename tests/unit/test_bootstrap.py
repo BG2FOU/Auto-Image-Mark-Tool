@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import struct
+import subprocess
 import sys
 from importlib.metadata import version
 from pathlib import Path
@@ -36,3 +37,17 @@ def test_toolchain_manifest_is_fixed() -> None:
         assert entry["url"].startswith("https://")
         assert re.fullmatch(r"[0-9a-f]{64}", entry["sha256"])
     assert manifest["exiftool"]["archive_name"] in manifest["exiftool"]["url"]
+
+
+def test_gps_step_import_does_not_load_watermark_or_raw_dependencies() -> None:
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            'import sys; import aim_tool.workflow.steps; assert not any(name in sys.modules for name in ("fontTools", "rawpy", "PIL.ImageCms", "aim_tool.services.watermark"))',
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
