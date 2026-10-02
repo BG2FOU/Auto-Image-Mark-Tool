@@ -134,3 +134,18 @@ def test_location_import_export_preserves_ids(
     )
     window.location_panel.export_button.click()
     assert ConfigStore(destination).load().locations == (preset,)
+
+
+def test_corrupt_list_can_restore_backup(qtbot: QtBot, tmp_path: Path) -> None:
+    store = ConfigStore(tmp_path / "locations.json")
+    original = LocationPreset("first", 1, 2)
+    store.put_location(original)
+    store.put_location(LocationPreset("second", 3, 4))
+    store.path.write_text("broken", encoding="utf-8")
+    window = GpsWindow(location_store=store)
+    qtbot.addWidget(window)
+    assert window.location_panel.restore_button.isEnabled()
+    window.location_panel.restore_button.click()
+    assert store.load().locations == (original,)
+    assert window.location_panel.selected_location() == original
+    assert "已从最近有效备份恢复" in window.log.toPlainText()

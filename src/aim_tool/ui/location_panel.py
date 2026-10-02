@@ -93,6 +93,7 @@ class LocationPanel(QWidget):
         self.location_combo.setMinimumWidth(280)
         self.path_label = QLabel(f"坐标列表：{self.store.path}")
         self.path_label.setToolTip(str(self.store.path))
+        self.restore_button = QPushButton("从备份恢复")
         self.new_button = QPushButton("新增")
         self.edit_button = QPushButton("编辑")
         self.delete_button = QPushButton("删除")
@@ -115,13 +116,17 @@ class LocationPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(row)
-        layout.addWidget(self.path_label)
+        path_row = QHBoxLayout()
+        path_row.addWidget(self.path_label)
+        path_row.addWidget(self.restore_button)
+        layout.addLayout(path_row)
         self.search_edit.textChanged.connect(self._refresh)
         self.new_button.clicked.connect(self.add_location)
         self.edit_button.clicked.connect(self.edit_location)
         self.delete_button.clicked.connect(self.delete_location)
         self.import_button.clicked.connect(self.import_locations)
         self.export_button.clicked.connect(self.export_locations)
+        self.restore_button.clicked.connect(self.restore_backup)
         self.apply_button.clicked.connect(self.apply_location)
         try:
             self._locations = self.store.load().locations
@@ -147,6 +152,7 @@ class LocationPanel(QWidget):
         for button in (self.edit_button, self.delete_button, self.apply_button):
             button.setEnabled(has_selection)
         self.export_button.setEnabled(bool(self._locations))
+        self.restore_button.setEnabled(self.store.backup.is_file())
 
     def selected_location(self) -> LocationPreset | None:
         selected = self.location_combo.currentData()
@@ -193,6 +199,15 @@ class LocationPanel(QWidget):
             self.message.emit(f"删除坐标失败：{error}")
             return
         self.message.emit(f"已删除坐标：{location.name}")
+
+    def restore_backup(self) -> None:
+        try:
+            self.store.restore_backup()
+            self._reload()
+        except (ConfigError, OSError) as error:
+            self.message.emit(f"恢复坐标列表失败：{error}")
+            return
+        self.message.emit("已从最近有效备份恢复坐标列表。")
 
     def apply_location(self) -> None:
         location = self.selected_location()
