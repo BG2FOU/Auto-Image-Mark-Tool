@@ -176,7 +176,7 @@ def test_explicit_custom_headers_share_csv_and_clipboard_validation(tmp_path: Pa
     rows = read_pasted_tsv(text, column_mapping=mapping)
     assert not preview_import(rows, (photo,)).errors
     table = tmp_path / "batch.csv"
-    table.write_text(text.replace("\t", ","))
+    table.write_text(text.replace("\t", ","), encoding="utf-8")
     assert read_table(table, column_mapping=mapping) == rows
     with pytest.raises(TableImportError, match="supported field"):
         read_pasted_tsv(text, column_mapping={"图片": "unknown"})
