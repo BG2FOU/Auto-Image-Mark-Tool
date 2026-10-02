@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
-import math
 import os
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from aim_tool.domain.validation import validate_coordinates as _validate_coordinates
 
 VERSION = "13.59"
 ROOT = Path(__file__).resolve().parents[3]
@@ -26,13 +27,8 @@ class GpsCoordinates:
 
 
 def validate_coordinates(latitude: float, longitude: float) -> None:
-    if (
-        not math.isfinite(latitude)
-        or not math.isfinite(longitude)
-        or not -90 <= latitude <= 90
-        or not -180 <= longitude <= 180
-    ):
-        raise ValueError("Coordinates must be finite WGS84 decimal degrees")
+    """Preserve the ExifTool adapter's public validator API."""
+    _validate_coordinates(latitude, longitude)
 
 
 def _default_executable() -> Path:
