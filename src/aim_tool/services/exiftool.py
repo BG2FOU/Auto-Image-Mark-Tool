@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -57,7 +59,12 @@ class ExifTool:
         if version != VERSION:
             raise ExifToolError(f"Expected ExifTool {VERSION}, got {version}")
 
-    def _run(self, *arguments: str, argfile_input: str | None = None) -> str:
+    def _run(
+        self,
+        *arguments: str,
+        argfile_input: str | None = None,
+        reject_warnings: bool = False,
+    ) -> str:
         command = (
             ["perl", str(self.executable), *arguments]
             if self.executable.suffix.lower() != ".exe" and sys.platform != "win32"
@@ -81,6 +88,8 @@ class ExifTool:
             raise ExifToolError(
                 f"ExifTool exited {completed.returncode}: {completed.stderr.strip()}"
             )
+        if reject_warnings and completed.stderr.strip():
+            raise ExifToolError(f"ExifTool metadata warning: {completed.stderr.strip()}")
         return completed.stdout
 
     def _run_for_path(self, path: Path, *arguments: str) -> str:
@@ -169,3 +178,42 @@ class ExifTool:
             abs(readback.latitude - latitude) > 1e-6 or abs(readback.longitude - longitude) > 1e-6
         ):
             raise ExifToolError("GPS readback differs from requested coordinates")
+
+    def copy_tags(
+        self,
+        source: Path,
+        target: Path,
+        tags: tuple[str, ...],
+        overrides: Mapping[str, int],
+    ) -> None:
+        """Copy named tags between distinct files using a UTF-8 argument stream."""
+        source = source.resolve()
+        target = target.resolve()
+        if source == target or not source.is_file() or not target.is_file():
+            raise ExifToolError("Metadata transfer requires two distinct existing files")
+        names = (*tags, *overrides)
+        if not names or any(
+            re.fullmatch(r"[A-Za-z0-9-]+:[A-Za-z0-9-]+", tag) is None for tag in names
+        ):
+            raise ExifToolError("Invalid metadata tag selection")
+        if any(type(value) is not int for value in overrides.values()):
+            raise ExifToolError("Metadata overrides must be integers")
+        if any("\n" in str(path) or "\r" in str(path) for path in (source, target)):
+            raise ExifToolError("File path cannot contain a newline")
+        arguments = [
+            "-overwrite_original",
+            "-P",
+            "-n",
+            *(["-tagsFromFile", str(source)] if tags else []),
+            *(f"-{tag}" for tag in tags),
+            *(f"-{tag}={value}" for tag, value in overrides.items()),
+            str(target),
+        ]
+        self._run(
+            "-charset",
+            "filename=UTF8",
+            "-@",
+            "-",
+            argfile_input="\n".join(arguments) + "\n",
+            reject_warnings=True,
+        )
