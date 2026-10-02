@@ -251,3 +251,26 @@ def test_private_nikon_jpg_combined_pipeline(
     assert values["IFD0:Model"] == "NIKON Z 5"
     assert values["ExifIFD:DateTimeOriginal"] == "2026:09:13 12:57:36"
     assert sha256(source.read_bytes()).digest() == before
+
+
+@pytest.mark.parametrize("invalid", ["partial_gps", "missing_date"])
+def test_bad_source_metadata_blocks_batch_in_preflight(
+    tmp_path: Path, tool: ExifTool, resources: WatermarkResources, invalid: str
+) -> None:
+    photo = _photo(tmp_path, "a.jpg", tool)
+    if invalid == "partial_gps":
+        tool._run_for_path(photo.source, "-overwrite_original", "-GPS:GPSLatitude=1")
+        message = "incomplete"
+        expected_error = ExifToolError
+    else:
+        tool._run_for_path(photo.source, "-overwrite_original", "-ExifIFD:DateTimeOriginal=")
+        message = "Capture date is missing"
+        expected_error = ValueError
+    before = sha256(photo.source.read_bytes()).digest()
+    with pytest.raises(expected_error, match=message):
+        build_plan(
+            BatchJob((photo,), preset("watermark_only"), tmp_path / "output"),
+            _registry(tool, resources),
+        )
+    assert not (tmp_path / "output").exists()
+    assert sha256(photo.source.read_bytes()).digest() == before

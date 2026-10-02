@@ -222,6 +222,7 @@ class WatermarkStep:
         from aim_tool.services.watermark import render_watermark_layer
 
         config, date_source = self._config(item, spec)
+        self.tool.read_gps(item.source)
         quality = spec.params.get("jpeg_quality", 95)
         subsampling = spec.params.get("jpeg_subsampling", 0)
         if type(quality) is not int or not 1 <= quality <= 100:
