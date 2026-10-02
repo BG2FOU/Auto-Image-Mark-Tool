@@ -167,3 +167,16 @@ def test_manual_date_has_priority_over_table_date(tmp_path: Path) -> None:
     assert updated.edits["imported_capture_date_original"] == "2026/03/04"
     with pytest.raises(ValueError, match="Invalid calendar"):
         apply_manual_date(photo, "2026/02/30")
+
+
+def test_explicit_custom_headers_share_csv_and_clipboard_validation(tmp_path: Path) -> None:
+    mapping = {"图片": "file_name", "注册号": "subject", "类型": "category"}
+    text = "图片\t注册号\t类型\na.jpg\tB-1356\taviation\n"
+    photo = _photo(tmp_path / "input", "a.jpg")
+    rows = read_pasted_tsv(text, column_mapping=mapping)
+    assert not preview_import(rows, (photo,)).errors
+    table = tmp_path / "batch.csv"
+    table.write_text(text.replace("\t", ","))
+    assert read_table(table, column_mapping=mapping) == rows
+    with pytest.raises(TableImportError, match="supported field"):
+        read_pasted_tsv(text, column_mapping={"图片": "unknown"})

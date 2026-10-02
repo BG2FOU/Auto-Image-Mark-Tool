@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from threading import Event
 
 from PIL import Image
@@ -185,3 +186,38 @@ class PreviewWorker(QThread):
         except Exception as error:  # noqa: BLE001 - report worker failures through Qt signals
             if not self.cancelled.is_set():
                 self.error.emit(request.generation, str(error))
+
+
+class TableImportWorker(QThread):
+    ready = Signal(object)
+    error = Signal(str)
+
+    def __init__(
+        self,
+        photos: tuple[PhotoItem, ...],
+        *,
+        path: Path | None,
+        text: str,
+        encoding: str,
+        sheet: str | None,
+        mapping: dict[str, str],
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.photos, self.path, self.text = photos, path, text
+        self.encoding, self.sheet, self.mapping = encoding, sheet, dict(mapping)
+
+    def run(self) -> None:
+        from aim_tool.services.table_import import preview_import, read_pasted_tsv, read_table
+
+        try:
+            rows = (
+                read_table(
+                    self.path, encoding=self.encoding, sheet=self.sheet, column_mapping=self.mapping
+                )
+                if self.path is not None
+                else read_pasted_tsv(self.text, column_mapping=self.mapping)
+            )
+            self.ready.emit(preview_import(rows, self.photos))
+        except Exception as error:  # noqa: BLE001 - surface parsing errors in the dialog
+            self.error.emit(str(error))

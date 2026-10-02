@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import zipfile
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import date, datetime
 from io import StringIO
@@ -61,10 +62,17 @@ class ImportPreview:
     errors: tuple[str, ...]
 
 
-def _headers(raw: tuple[Any, ...]) -> dict[int, str]:
+def _headers(
+    raw: tuple[Any, ...], column_mapping: Mapping[str, str] | None = None
+) -> dict[int, str]:
+    names = dict(HEADERS)
+    for alias, field in (column_mapping or {}).items():
+        if not alias.strip() or field not in FIELDS:
+            raise TableImportError("Column mapping needs a nonempty header and a supported field")
+        names[alias.strip()] = field
     result: dict[int, str] = {}
     for index, value in enumerate(raw):
-        name = HEADERS.get(str(value).strip()) if value is not None else None
+        name = names.get(str(value).strip()) if value is not None else None
         if name is not None:
             if name in result.values():
                 raise TableImportError(f"Duplicate mapped column: {name}")
@@ -74,10 +82,12 @@ def _headers(raw: tuple[Any, ...]) -> dict[int, str]:
     return result
 
 
-def _rows(records: list[tuple[int, tuple[Any, ...]]]) -> tuple[ImportedRow, ...]:
+def _rows(
+    records: list[tuple[int, tuple[Any, ...]]], column_mapping: Mapping[str, str] | None = None
+) -> tuple[ImportedRow, ...]:
     if not records:
         raise TableImportError("Table is empty")
-    headers = _headers(records[0][1])
+    headers = _headers(records[0][1], column_mapping)
     rows: list[ImportedRow] = []
     for number, record in records[1:]:
         values: dict[str, str | date | datetime] = {}
@@ -100,19 +110,25 @@ def _rows(records: list[tuple[int, tuple[Any, ...]]]) -> tuple[ImportedRow, ...]
     return tuple(rows)
 
 
-def read_pasted_tsv(text: str) -> tuple[ImportedRow, ...]:
+def read_pasted_tsv(
+    text: str, *, column_mapping: Mapping[str, str] | None = None
+) -> tuple[ImportedRow, ...]:
     """Parse actual clipboard tabs and quoted records before a user applies edits."""
     try:
         reader = csv.reader(
             StringIO(text.lstrip("\ufeff"), newline=""), delimiter="\t", strict=True
         )
-        return _rows([(reader.line_num, tuple(record)) for record in reader])
+        return _rows([(reader.line_num, tuple(record)) for record in reader], column_mapping)
     except csv.Error as error:
         raise TableImportError(f"Cannot read pasted TSV: {error}") from error
 
 
 def read_table(
-    path: Path, *, encoding: str = "utf-8-sig", sheet: str | None = None
+    path: Path,
+    *,
+    encoding: str = "utf-8-sig",
+    sheet: str | None = None,
+    column_mapping: Mapping[str, str] | None = None,
 ) -> tuple[ImportedRow, ...]:
     """Never infer a fallback encoding or evaluate spreadsheet formulas."""
     suffix = path.suffix.lower()
@@ -128,7 +144,7 @@ def read_table(
                 records = [(reader.line_num, tuple(record)) for record in reader]
         except (OSError, UnicodeError, csv.Error) as error:
             raise TableImportError(f"Cannot read table: {error}") from error
-        return _rows(records)
+        return _rows(records, column_mapping)
     if suffix != ".xlsx":
         raise TableImportError("Only CSV, TSV and XLSX tables are supported")
     try:
@@ -144,7 +160,7 @@ def read_table(
                 if any(cell.data_type == "f" for cell in cells):
                     raise TableImportError(f"Formula cell on row {cells[0].row}; paste its value")
                 records.append((cells[0].row, tuple(cell.value for cell in cells)))
-            return _rows(records)
+            return _rows(records, column_mapping)
         finally:
             workbook.close()
     except (OSError, ValueError, KeyError, zipfile.BadZipFile) as error:
