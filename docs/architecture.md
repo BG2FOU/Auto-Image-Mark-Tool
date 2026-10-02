@@ -1,6 +1,6 @@
 # 工作流与 JPEG 水印数据流
 
-当前真实组件包括 `LocationStep`、`WatermarkStep` 和 `ExportStep`。`RawDevelopStep` 是明确报错的门禁：按用户指示，水印处理暂只支持 JPG/JPEG。位置-only 的 NEF 也仍由独立 Nikon 查看器验收门禁保护。
+当前真实组件包括 `LocationStep`、`WatermarkStep` 和 `ExportStep`。`RawDevelopStep` 是明确报错的门禁：按用户指示，水印处理暂只支持 JPG/JPEG。NEF 的坐标与图像处理均按当前范围延至后续版本，GUI 仅导入 JPG/JPEG；既有后端兼容接口保留门禁。
 
 ## 预检与配置快照
 
@@ -22,4 +22,10 @@
 
 无 ICC 的 RGB 输入会记录 sRGB 假设警告，警告进入 `ItemResult.warnings`。GPS 不完整、元数据复制异常、素材变动、缺字和布局越界会报错。GPS 不被默认写入日志或公开验收记录。字体、签名、照片及个人配置不进入 CI 或 Release。
 
-当前 S6 的 JPEG 后端已通过真实 ExifTool 与合成字体的流水线测试及本地 Nikon Z 5 样片检查。水印 GUI、作业报告、NEF 图像处理和完整应用发布仍待后续阶段；现有 GPS Release 不包含水印功能。
+## 图形页面与资源边界
+
+完整 JPG 页面已连接稳定 UUID 表格、地点列表、表格导入、设置、预检、批次执行及报告。元数据、预检、预览和执行在工作线程运行；预览只允许一个在途任务并合并新请求，按 generation 丢弃过期结果。导出沿用同一渲染器与配置；GUI 缩略图只保留有限尺寸，100% 局部仅保留水印邻域。
+
+预览和水印解码前限制 JPEG 为 6000 万像素，签名为 1600 万像素；过大的文字或签名输出在分配位图前拒绝。超限输入不缩小后冒充全尺寸输出。坐标-only 不调用图像解码服务，仍不重编码照片。
+
+当前 JPG 后端与 GUI 已通过真实 ExifTool、合成字体及本地授权样片检查。完整应用冻结构建、人工视觉认可和发布仍需分别验收；现有 GPS Release 不包含水印功能。

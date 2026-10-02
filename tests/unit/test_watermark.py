@@ -61,3 +61,22 @@ def test_dpi_labels_do_not_change_watermark_pixel_scale(
         assert result.dpi == (dpi, dpi)
         assert sha256(path.read_bytes()).digest() == before
     assert outputs[0] == outputs[1]
+
+
+def test_long_content_is_rejected_before_allocating_a_huge_layer(
+    synthetic_watermark_resources: WatermarkResources, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import aim_tool.services.watermark as renderer
+
+    original = renderer.Image.new
+
+    def bounded_new(
+        mode: str, size: tuple[int, int], *args: object, **kwargs: object
+    ) -> Image.Image:
+        assert size[0] <= 1007 and size[1] <= 672
+        return original(mode, size, *args, **kwargs)
+
+    monkeypatch.setattr(renderer.Image, "new", bounded_new)
+    config = WatermarkConfig("aviation", "B" * 10000, date(2026, 9, 26))
+    with pytest.raises(ValueError, match="does not fit"):
+        render_watermark_layer((1007, 672), config, synthetic_watermark_resources)

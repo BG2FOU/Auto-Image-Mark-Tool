@@ -13,6 +13,8 @@ from PIL import Image, ImageCms, ImageOps
 from aim_tool.services.output import commit_no_overwrite
 from aim_tool.services.watermark import WatermarkConfig, WatermarkResources, render_watermark_layer
 
+MAX_JPEG_PIXELS = 60_000_000
+
 
 @dataclass(frozen=True)
 class PreparedJpeg:
@@ -24,12 +26,17 @@ class PreparedJpeg:
 
 def prepare_jpeg(path: Path) -> PreparedJpeg:
     """Apply EXIF orientation once, then convert an embedded source profile to sRGB."""
-    with Image.open(path) as original:
-        if original.format != "JPEG":
-            raise ValueError("Watermark preview needs a JPEG input")
-        oriented = ImageOps.exif_transpose(original)
-        embedded_icc = original.info.get("icc_profile")
-        dpi = original.info.get("dpi")
+    try:
+        with Image.open(path) as original:
+            if original.format != "JPEG":
+                raise ValueError("Watermark preview needs a JPEG input")
+            if original.width * original.height > MAX_JPEG_PIXELS:
+                raise ValueError("JPEG exceeds the 60 megapixel watermark limit")
+            oriented = ImageOps.exif_transpose(original)
+            embedded_icc = original.info.get("icc_profile")
+            dpi = original.info.get("dpi")
+    except Image.DecompressionBombError as error:
+        raise ValueError("JPEG exceeds the 60 megapixel watermark limit") from error
     srgb_profile = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB"))
     if embedded_icc:
         try:
@@ -37,7 +44,7 @@ def prepare_jpeg(path: Path) -> PreparedJpeg:
             pixels = ImageCms.profileToProfile(
                 oriented, source_profile, srgb_profile, outputMode="RGB"
             )
-        except (OSError, ValueError) as error:
+        except (OSError, ValueError, ImageCms.PyCMSError) as error:
             raise ValueError("JPEG has an unreadable ICC profile") from error
         if pixels is None:
             raise ValueError("ICC conversion produced no pixels")

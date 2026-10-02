@@ -52,9 +52,13 @@ def identify_signature(path: Path) -> SignatureIdentity:
         raise ValueError(f"Signature is unavailable: {path}")
     try:
         with Image.open(path) as original:
+            if original.width * original.height > 16_000_000:
+                raise ValueError("Signature exceeds the 16 megapixel limit")
             rgba = original.convert("RGBA")
+    except Image.DecompressionBombError as error:
+        raise ValueError("Signature exceeds the 16 megapixel limit") from error
     except (OSError, ValueError) as error:
-        raise ValueError(f"Signature cannot be opened: {path}") from error
+        raise ValueError(f"Signature cannot be opened: {path}: {error}") from error
     alpha = rgba.getchannel("A")
     bounds = alpha.getbbox()
     if bounds is None:

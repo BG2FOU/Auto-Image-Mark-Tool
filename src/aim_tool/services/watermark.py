@@ -97,14 +97,23 @@ def _spans(config: WatermarkConfig) -> list[tuple[str, bool]]:
     return result
 
 
-def _scaled_signature(path: Path, width: int, opacity: float) -> Image.Image:
-    with Image.open(path) as original:
-        rgba = original.convert("RGBA")
+def _scaled_signature(
+    path: Path, width: int, opacity: float, *, max_size: tuple[int, int] | None = None
+) -> Image.Image:
+    try:
+        with Image.open(path) as original:
+            if original.width * original.height > 16_000_000:
+                raise ValueError("Signature exceeds the 16 megapixel limit")
+            rgba = original.convert("RGBA")
+    except Image.DecompressionBombError as error:
+        raise ValueError("Signature exceeds the 16 megapixel limit") from error
     bounds = rgba.getchannel("A").getbbox()
     if bounds is None:
         raise ValueError("Signature has no visible pixels")
     rgba = rgba.crop(bounds)
     height = max(1, round(rgba.height * width / rgba.width))
+    if max_size is not None and (width > max_size[0] or height > max_size[1]):
+        raise ValueError("Signature does not fit this image")
     signature = rgba.convert("RGBa").resize((width, height), Image.Resampling.LANCZOS)
     signature = signature.convert("RGBA")
     alpha = signature.getchannel("A").point(lambda value: round(value * opacity))
@@ -159,6 +168,8 @@ def render_watermark_layer(
     top = min(box[1] for box in boxes)
     right = max(round(position), *(box[2] for box in boxes))
     bottom = max(box[3] for box in boxes)
+    if right - left > width or bottom - top > height:
+        raise ValueError("Watermark does not fit this image")
     text_layer = Image.new("RGBA", (right - left + 2, bottom - top + 2))
     for text, font, advance, opacity in runs:
         mask = Image.new("L", text_layer.size)
@@ -168,7 +179,10 @@ def render_watermark_layer(
         color_layer.putalpha(mask)
         text_layer.alpha_composite(color_layer)
     signature = _scaled_signature(
-        resources.signature, max(1, round(config.signature_width * scale)), config.signature_opacity
+        resources.signature,
+        max(1, round(config.signature_width * scale)),
+        config.signature_opacity,
+        max_size=size,
     )
     # The default is visible-bottom alignment. An explicit offset lets the user
     # calibrate Q4 without changing the confirmed outer 25 px margin.
