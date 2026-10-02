@@ -89,10 +89,13 @@ class LocationPanel(QWidget):
         self.initial_error: str | None = None
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText("搜索坐标名称")
+        self.search_edit.setMaximumWidth(240)
         self.location_combo = QComboBox()
         self.location_combo.setMinimumWidth(280)
         self.path_label = QLabel(f"坐标列表：{self.store.path}")
         self.path_label.setToolTip(str(self.store.path))
+        self.path_label.setWordWrap(True)
+        self.path_label.setObjectName("muted")
         self.restore_button = QPushButton("从备份恢复")
         self.new_button = QPushButton("新增")
         self.edit_button = QPushButton("编辑")
@@ -103,22 +106,25 @@ class LocationPanel(QWidget):
         row = QHBoxLayout()
         row.addWidget(QLabel("WGS84 坐标列表"))
         row.addWidget(self.search_edit)
-        row.addWidget(self.location_combo)
+        row.addWidget(self.location_combo, 1)
         for button in (
             self.new_button,
             self.edit_button,
             self.delete_button,
-            self.import_button,
-            self.export_button,
-            self.apply_button,
         ):
             row.addWidget(button)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(row)
         path_row = QHBoxLayout()
-        path_row.addWidget(self.path_label)
-        path_row.addWidget(self.restore_button)
+        path_row.addWidget(self.path_label, 1)
+        for button in (
+            self.import_button,
+            self.export_button,
+            self.apply_button,
+            self.restore_button,
+        ):
+            path_row.addWidget(button)
         layout.addLayout(path_row)
         self.search_edit.textChanged.connect(self._refresh)
         self.new_button.clicked.connect(self.add_location)

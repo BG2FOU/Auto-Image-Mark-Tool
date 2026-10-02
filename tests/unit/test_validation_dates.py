@@ -52,3 +52,10 @@ def test_date_priority_and_explicit_create_date_fallback() -> None:
 def test_invalid_explicit_date_does_not_silently_fall_back() -> None:
     with pytest.raises(DateError, match="Invalid calendar"):
         resolve_capture_date(manual="2026-02-30", imported="2026-03-01")
+
+
+def test_unpadded_year_first_date_is_supported_without_ambiguous_guessing() -> None:
+    assert parse_capture_date("2026/9/26") == date(2026, 9, 26)
+    for invalid in ("2026/2/30", "2026-09/26", "9/26/2026"):
+        with pytest.raises(ValueError):
+            parse_capture_date(invalid)

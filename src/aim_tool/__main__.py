@@ -11,6 +11,7 @@ from aim_tool import __version__
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="aim-tool")
+    parser.add_argument("--gps-only", action="store_true", help="Open the standalone GPS preview")
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument(
         "--self-test", action="store_true", help="Run an offline GPS GUI smoke test"
@@ -28,7 +29,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     from aim_tool.app import run_gui
 
-    return run_gui()
+    return run_gui(gps_only=args.gps_only)
 
 
 if __name__ == "__main__":

@@ -370,6 +370,7 @@ JSON 带 `schema_version`，以临时文件+原子替换保存配置并保留最
 | 新增 | `scripts/fetch_tools.py` | 按清单下载官方 ExifTool Windows 分发包、校验哈希、安全解压到被忽略的 `tools/exiftool/`，支持已有缓存和离线指定路径；保留所需支持文件。 |
 | 新增 | `packaging/toolchain.json` | Python/打包引导工具/ExifTool 的准确版本、官方 URL、SHA-256、预期目录和许可来源；不得保留占位哈希通过验收。 |
 | 新增 | `packaging/AutoImageMarkTool.spec` | PyInstaller 配置，收集模板、许可证、Qt 插件、rawpy DLL、ExifTool 完整运行时；允许公开内置签名时，显式将 `data/NAME.png` 映射到 `aim_tool/resources/signatures/NAME.png`，不扫描打包整个 `data/`；由构建脚本选择 onedir/onefile，不包含用户照片/字体。 |
+| 新增；兼容既有 GPS 包 | `packaging/gps_gui_entrypoint.py` | 保留独立 GPS 预览启动含义，默认源码入口转为完整 JPG 页面；GPS 冻结包不依赖水印素材。 |
 | 新增 | `packaging/entrypoint.py` | 冻结应用启动 shim，调用 `aim_tool.__main__` 的入口，避免相对导入问题。 |
 | 新增 | `scripts/build.ps1` | 检查版本和工具链，生成 Windows 版本信息，调用同一 spec，产物仅写 build/dist；检测外部命令退出码并失败即停止。 |
 | 新增 | `scripts/smoke_exe.py` | 带超时启动冻结程序自测，检查退出码和 JSON 结果、无残留进程；测试 Qt 初始化、资源、ExifTool、合成 JPEG GPS+水印输出。 |

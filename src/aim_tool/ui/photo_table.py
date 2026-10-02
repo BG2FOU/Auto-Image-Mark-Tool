@@ -67,6 +67,7 @@ class PhotoTableModel(QAbstractTableModel):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.rows: list[PhotoRow] = []
+        self.allow_create_date = False
 
     def rowCount(self, parent: QModelIndex | QPersistentModelIndex = EMPTY_INDEX) -> int:
         return 0 if parent.isValid() else len(self.rows)
@@ -86,9 +87,15 @@ class PhotoTableModel(QAbstractTableModel):
             resolved = resolve_capture_date(
                 manual=photo.taken_on,
                 exif_datetime_original=photo.metadata.get("ExifIFD:DateTimeOriginal"),
+                exif_create_date=photo.metadata.get("ExifIFD:CreateDate"),
+                allow_create_date=self.allow_create_date,
             )
             source = photo.edits.get("capture_date_source", resolved.source)
-            return resolved.day.isoformat(), {"manual": "手动", "table": "表格"}.get(source, "EXIF")
+            return resolved.day.isoformat(), {
+                "manual": "手动",
+                "table": "表格",
+                "EXIF CreateDate": "CreateDate",
+            }.get(source, "EXIF")
         except ValueError:
             return "", "待读取" if not photo.metadata else "缺失 / 无效"
 
@@ -288,6 +295,13 @@ class PhotoTableModel(QAbstractTableModel):
                 row.error = result.error or ""
                 row.output = str(result.output) if result.output else ""
                 self._changed(number)
+
+    def preflight_error(self, photo_id: str, error: str) -> None:
+        for number, row in enumerate(self.rows):
+            if str(row.photo.id) == photo_id:
+                row.status, row.error = "检查失败", error
+                self._changed(number)
+                return
 
     def retry_failed(self) -> None:
         for number, row in enumerate(self.rows):

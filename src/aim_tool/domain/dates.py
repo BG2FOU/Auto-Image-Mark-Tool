@@ -24,7 +24,7 @@ class ResolvedDate:
         return self.day.strftime("%Y/%m/%d")
 
 
-_DATE = re.compile(r"\d{4}[-/]\d{2}[-/]\d{2}\Z")
+_DATE = re.compile(r"\d{4}(?:-\d{2}-\d{2}|/\d{1,2}/\d{1,2})\Z")
 _ISO_DATETIME = re.compile(
     r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}"
     r"(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?\Z"
@@ -46,8 +46,10 @@ def parse_capture_date(value: DateInput) -> date:
         raise DateError(f"Ambiguous capture date: {text}; use YYYY-MM-DD")
     try:
         if _DATE.fullmatch(text):
-            normalized = text.replace("/", "-")
-            return date.fromisoformat(normalized)
+            if "/" in text:
+                year, month, day = (int(part) for part in text.split("/"))
+                return date(year, month, day)
+            return date.fromisoformat(text)
         if _ISO_DATETIME.fullmatch(text):
             normalized = text.replace("Z", "+00:00")
             return datetime.fromisoformat(normalized).date()

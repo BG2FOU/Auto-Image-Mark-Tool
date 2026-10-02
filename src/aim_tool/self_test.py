@@ -24,7 +24,7 @@ from aim_tool.workflow.steps import ExportStep, LocationStep
 
 def run_self_test(report: Path) -> int:
     application = QApplication.instance() or QApplication([])
-    window = create_main_window()
+    window = create_main_window(gps_only=True)
     window.show()
     application.processEvents()
     if not window.isVisible():

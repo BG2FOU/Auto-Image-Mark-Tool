@@ -111,6 +111,7 @@ class PreviewPanel(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.generation = 0
         self._worker: PreviewWorker | None = None
         self._pending: PreviewRequest | None = None

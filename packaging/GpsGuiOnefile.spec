@@ -21,7 +21,7 @@ else:
     ]
 
 a = Analysis(
-    [str(root / "src/aim_tool/__main__.py")],
+    [str(root / "packaging/gps_gui_entrypoint.py")],
     pathex=[str(root / "src")],
     binaries=[],
     datas=tool_data
@@ -33,7 +33,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["rawpy", "openpyxl", "fontTools"],
+    excludes=["rawpy", "openpyxl", "fontTools", "aim_tool.ui.main_window"],
     noarchive=False,
 )
 pyz = PYZ(a.pure)

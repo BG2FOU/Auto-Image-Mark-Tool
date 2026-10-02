@@ -139,7 +139,12 @@ def build_plan(
                 raise WorkflowError(
                     f"{spec.component_id} cannot consume {kind.value} for {photo.source.name}"
                 )
-            implementation.validate(photo, spec)
+            try:
+                implementation.validate(photo, spec)
+            except Exception as error:
+                error.add_note(f"Photo: {photo.source.name}; step: {spec.component_id}")
+                error.__dict__["photo_id"] = photo.id
+                raise
             kind = implementation.output_kind(kind)
             steps.append(PlannedStep(spec, implementation, kind))
         if kind != ImageKind.EXPORTED:

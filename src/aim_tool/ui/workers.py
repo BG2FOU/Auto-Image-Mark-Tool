@@ -48,7 +48,7 @@ class MetadataWorker(QThread):
 
     def run(self) -> None:
         try:
-            tool = ExifTool()
+            tool = ExifTool(timeout=30)
             for photo in self.photos:
                 if self.cancelled.is_set():
                     break
@@ -73,20 +73,27 @@ class MetadataWorker(QThread):
 class PreflightWorker(QThread):
     ready = Signal(object)
     error = Signal(str)
+    item_error = Signal(str, str)
 
     def __init__(
-        self, job: BatchJob, settings: WatermarkSettings, parent: QWidget | None = None
+        self,
+        job: BatchJob,
+        settings: WatermarkSettings,
+        parent: QWidget | None = None,
+        *,
+        clear_auxiliary_gps: bool = False,
     ) -> None:
         super().__init__(parent)
+        self.clear_auxiliary_gps = clear_auxiliary_gps
         self.job = job
         self.settings = settings
         self.cancelled = Event()
 
     def run(self) -> None:
         try:
-            tool = ExifTool()
+            tool = ExifTool(timeout=30)
             registry = StepRegistry()
-            registry.register(LocationStep(tool))
+            registry.register(LocationStep(tool, clear_auxiliary_gps=self.clear_auxiliary_gps))
             registry.register(WatermarkStep(tool, self.settings.resources))
             registry.register(ExportStep())
             plan = build_plan(self.job, registry, cancelled=self.cancelled)
@@ -94,7 +101,10 @@ class PreflightWorker(QThread):
                 self.ready.emit(plan)
         except Exception as error:  # noqa: BLE001 - report worker failures through Qt signals
             if not self.cancelled.is_set():
-                self.error.emit(str(error))
+                self.error.emit("\n".join([str(error), *getattr(error, "__notes__", ())]))
+                photo_id = getattr(error, "photo_id", None)
+                if photo_id is not None:
+                    self.item_error.emit(str(photo_id), str(error))
 
 
 @dataclass(frozen=True)
@@ -144,7 +154,7 @@ class PreviewWorker(QThread):
             caption = f"{size[0]} × {size[1]} px"
             pixels = prepared.pixels
             if request.settings is not None:
-                tool = ExifTool()
+                tool = ExifTool(timeout=30)
                 step = WatermarkStep(tool, request.settings.resources)
                 config, date_source = step.configuration(
                     request.photo, StepSpec("watermark", params=request.settings.params)
@@ -155,6 +165,12 @@ class PreviewWorker(QThread):
                 bounds = overlay.getchannel("A").getbbox()
                 pixels = Image.alpha_composite(pixels.convert("RGBA"), overlay).convert("RGB")
                 scale = watermark_scale(size, config)
+                date_source = {
+                    "manual": "手动",
+                    "table": "表格",
+                    "EXIF DateTimeOriginal": "EXIF 拍摄时间",
+                    "EXIF CreateDate": "EXIF 创建时间",
+                }.get(date_source, date_source)
                 caption += f"\n字号 {max(1, round(config.font_size_pt * config.base_ppi / 72 * scale))} px · 签名 {max(1, round(config.signature_width * scale))} px · {config.taken_on:%Y/%m/%d}（{date_source}）"
             if self.cancelled.is_set():
                 return

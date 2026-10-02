@@ -151,7 +151,7 @@ class GpsWindow(QMainWindow):
 
     def _pick_files(self) -> None:
         names, _ = QFileDialog.getOpenFileNames(
-            self, "选择照片", "", "照片 (*.jpg *.jpeg *.JPG *.JPEG *.nef *.NEF)"
+            self, "选择照片", "", "照片 (*.jpg *.jpeg *.JPG *.JPEG)"
         )
         if names:
             self.add_photos(tuple(Path(name) for name in names))
@@ -161,7 +161,7 @@ class GpsWindow(QMainWindow):
         if name:
             root = Path(name)
             paths = tuple(
-                path for path in root.rglob("*") if path.suffix.lower() in {".jpg", ".jpeg", ".nef"}
+                path for path in root.rglob("*") if path.suffix.lower() in {".jpg", ".jpeg"}
             )
             self.add_photos(paths, import_root=root)
 
