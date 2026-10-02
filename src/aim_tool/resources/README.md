@@ -10,4 +10,4 @@
 | `project:fangzheng-shengshi-kaishu` | `data/FangZhengShengShiKaiShuJianTi-Da.ttf` | `e654df886e997e9847744583fa5a1ad78930bfde72c358500e4ed4518f49bc76` |
 | `project:name-signature` | `data/NAME.png` | `d86e885e86c0977a2d874aacb16671be11f3bde55fdb23139f6e4aadcf330777` |
 
-默认 Photoshop 字号为 36 pt，在 300 ppi 基准下是 150 px。签名有效宽 300 px、保持原 759:459 比例，原 RGB 和 Alpha 保留并仅乘一次 0.50；组合可见右/下边距为 25 px。签名组内垂直位置目前默认可见底部对齐，可由 `signature_offset_y` 调整，最终视觉对齐尚待确认。
+默认 Photoshop 字号为 36 pt，在 300 ppi 基准下是 150 px。签名有效宽 300 px、保持原 759:459 比例，原 RGB 和 Alpha 保留并仅乘一次 0.50；组合可见右/下边距为 25 px。签名组内垂直位置目前默认可见底部对齐，可由 `signature_offset_y` 调整，三类默认预览的视觉对齐已于 2026-10-02 获用户确认。
