@@ -126,3 +126,7 @@ S5 本地单图 JPEG 水印预览提交为 `bec04b2`。三类模板使用本地 
 元数据/GPS 定向测试 8 项通过，JPG 流水线定向测试 8 项通过（含本地 Nikon Z 5），全量回归 86 项通过；Ruff check/format、mypy、`pip check` 通过。重新构建 Linux GPS-only onedir，并运行窗口、坐标列表、ExifTool/GPS、原片与像素冻结自检通过，验证 GPS 路径不加载水印字体或 RAW 依赖。原生 Windows CI 增加真实 ExifTool 与合成字体流水线检查，私人素材仍仅在本地检查。
 
 本地正式组合输出位于忽略目录 `demo-output/s6-jpg-gps/DSC_0168_marked.jpg`，使用既有 GPS 试验坐标；坐标不记入此公开文档。该图已独立读回相机、拍摄日期、方向、尺寸及 GPS。NEF 图像处理继续暂缓，独立 Nikon 查看器验收也仍未取得；本节不宣称完整 S6、S7 或正式水印发布通过。
+
+## 2026-10-02：当前范围调整
+
+用户要求先试验非标准尺寸 `DSC_0387.jpg`，本期只完善 JPG/JPEG 的坐标、水印、组合流程和图形页面。NEF GPS、显影、水印均移入后续版本，当前 GUI 不导入 NEF；既有接口保留。本期 S6–S10 不再以 NEF 查看器认可为前置。前一轮的原生 Windows CI（`36974383463`，提交 `e5f279d`）已确认成功。
