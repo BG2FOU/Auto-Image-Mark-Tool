@@ -45,12 +45,15 @@ def main() -> int:
             "gui_started": True,
             "exiftool": "13.59",
             "gps_roundtrip": True,
+            "location_roundtrip": True,
             "source_unchanged": True,
             "pixels_unchanged": True,
         }
         if data != expected:
             raise RuntimeError(f"Unexpected frozen GUI self-test report: {data}")
-    print("Frozen GPS GUI smoke passed: window, ExifTool, GPS, source and JPEG pixels")
+    print(
+        "Frozen GPS GUI smoke passed: window, location presets, ExifTool, GPS, source and JPEG pixels"
+    )
     return 0
 
 

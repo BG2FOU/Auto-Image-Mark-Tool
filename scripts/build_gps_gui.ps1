@@ -13,10 +13,10 @@ if ($LASTEXITCODE -ne 0 -or $version -ne '13.59') {
 Remove-Item Env:AIM_EXIFTOOL -ErrorAction SilentlyContinue
 & $python -m PyInstaller --noconfirm --clean --distpath dist --workpath build\gps-gui packaging\GpsGui.spec
 if ($LASTEXITCODE -ne 0) { throw 'GPS GUI onedir build failed' }
-& $python scripts\smoke_gps_gui.py --exe dist\AutoImageMarkGpsGui\AutoImageMarkGpsGui.exe --version 0.2.0rc1
+& $python scripts\smoke_gps_gui.py --exe dist\AutoImageMarkGpsGui\AutoImageMarkGpsGui.exe --version 0.2.0rc2
 if ($LASTEXITCODE -ne 0) { throw 'GPS GUI onedir smoke failed' }
 & $python -m PyInstaller --noconfirm --clean --distpath dist\gps-gui-onefile --workpath build\gps-gui-onefile packaging\GpsGuiOnefile.spec
 if ($LASTEXITCODE -ne 0) { throw 'GPS GUI onefile build failed' }
-& $python scripts\smoke_gps_gui.py --exe dist\gps-gui-onefile\AutoImageMarkGpsGui.exe --version 0.2.0rc1
+& $python scripts\smoke_gps_gui.py --exe dist\gps-gui-onefile\AutoImageMarkGpsGui.exe --version 0.2.0rc2
 if ($LASTEXITCODE -ne 0) { throw 'GPS GUI onefile smoke failed' }
 Get-FileHash dist\gps-gui-onefile\AutoImageMarkGpsGui.exe -Algorithm SHA256

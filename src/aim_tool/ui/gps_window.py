@@ -27,6 +27,8 @@ from PySide6.QtWidgets import (
 
 from aim_tool.domain import BatchJob, ItemResult, ItemStatus, PhotoItem
 from aim_tool.services.exiftool import ExifTool, validate_coordinates
+from aim_tool.services.storage import ConfigStore
+from aim_tool.ui.location_panel import LocationPanel
 from aim_tool.workflow.engine import ExecutionPlan, build_plan, run_plan
 from aim_tool.workflow.registry import StepRegistry, preset
 from aim_tool.workflow.steps import ExportStep, LocationStep
@@ -53,7 +55,12 @@ class GpsWorker(QThread):
 class GpsWindow(QMainWindow):
     """Select photos, assign WGS84 coordinates, preflight, then write copies."""
 
-    def __init__(self, *, allow_nef_after_viewer_check: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        allow_nef_after_viewer_check: bool = False,
+        location_store: ConfigStore | None = None,
+    ) -> None:
         super().__init__()
         self.setWindowTitle("Auto Image Mark Tool")
         self.resize(1050, 650)
@@ -97,6 +104,10 @@ class GpsWindow(QMainWindow):
         bulk_row.addWidget(self.bulk_longitude)
         bulk_row.addWidget(self.apply_button)
 
+        self.location_panel = LocationPanel(location_store, self)
+        self.location_panel.apply_requested.connect(self.apply_location_coordinates)
+        self.location_panel.message.connect(self._message)
+
         self.output_root_edit = QLineEdit()
         self.output_root_edit.setPlaceholderText("选择与原片目录不同的输出文件夹")
         self.output_button = QPushButton("浏览…")
@@ -137,6 +148,7 @@ class GpsWindow(QMainWindow):
         layout.addLayout(files_row)
         layout.addWidget(self.table)
         layout.addLayout(bulk_row)
+        layout.addWidget(self.location_panel)
         layout.addLayout(output_form)
         layout.addLayout(action_row)
         layout.addWidget(self.progress)
@@ -144,6 +156,8 @@ class GpsWindow(QMainWindow):
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
+        if self.location_panel.initial_error:
+            self._message(self.location_panel.initial_error)
 
     def _message(self, message: str) -> None:
         self.log.appendPlainText(message)
@@ -243,6 +257,11 @@ class GpsWindow(QMainWindow):
             self._item(row, 4).setText("待检查")
         self._message(f"已将坐标应用到 {len(rows)} 张勾选照片。")
 
+    def apply_location_coordinates(self, latitude: float, longitude: float) -> None:
+        self.bulk_latitude.setText(str(latitude))
+        self.bulk_longitude.setText(str(longitude))
+        self.apply_bulk_coordinates()
+
     def _build_plan(self) -> ExecutionPlan:
         if not self.output_root_edit.text().strip():
             raise ValueError("请选择输出目录")
@@ -313,6 +332,7 @@ class GpsWindow(QMainWindow):
             self.add_folder_button,
             self.remove_button,
             self.apply_button,
+            self.location_panel,
             self.output_root_edit,
             self.output_button,
             self.preflight_button,

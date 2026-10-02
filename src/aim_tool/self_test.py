@@ -13,8 +13,10 @@ from PySide6.QtWidgets import QApplication
 
 from aim_tool import __version__
 from aim_tool.app import create_main_window
-from aim_tool.domain import BatchJob, ItemStatus, PhotoItem
+from aim_tool.domain import BatchJob, ItemStatus, LocationPreset, PhotoItem
 from aim_tool.services.exiftool import ExifTool
+from aim_tool.services.storage import ConfigStore
+from aim_tool.ui.gps_window import GpsWindow
 from aim_tool.workflow.engine import build_plan, run_plan
 from aim_tool.workflow.registry import StepRegistry, preset
 from aim_tool.workflow.steps import ExportStep, LocationStep
@@ -38,6 +40,17 @@ def run_self_test(report: Path) -> int:
         # PySide6 6.11 accepts str here even though its type stub declares bytes.
         if not picture.save(str(source), "JPEG"):  # type: ignore[call-overload]
             raise RuntimeError("Qt could not create a JPEG")
+        preset_store = ConfigStore(root / "locations.json")
+        preset_window = GpsWindow(location_store=preset_store)
+        preset_window.location_panel.save_location(
+            LocationPreset("self-test", -24.123456789, 118.987654321)
+        )
+        preset_window.close()
+        reopened = GpsWindow(location_store=preset_store)
+        saved_location = reopened.location_panel.selected_location()
+        if saved_location is None or saved_location.name != "self-test":
+            raise RuntimeError("Location preset roundtrip failed")
+        reopened.close()
         before = sha256(source.read_bytes()).digest()
         tool = ExifTool()
         item = PhotoItem(source, input_root, coordinates=(-24.123456789, 118.987654321))
@@ -82,6 +95,7 @@ def run_self_test(report: Path) -> int:
                 "gui_started": True,
                 "exiftool": "13.59",
                 "gps_roundtrip": True,
+                "location_roundtrip": True,
                 "source_unchanged": True,
                 "pixels_unchanged": True,
             },
