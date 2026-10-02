@@ -45,6 +45,9 @@ include-package-data = true
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"aim_tool.resources" = ["default_templates.json"]
+
 [tool.setuptools.dynamic]
 version = {attr = "aim_tool.__version__"}
 

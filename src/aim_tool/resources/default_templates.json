@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "font_size_unit": "pt",
+  "base_canvas": {
+    "width": 6016,
+    "height": 4016,
+    "ppi": 300
+  },
+  "defaults": {
+    "font_size_pt": 36,
+    "signature_width": 300,
+    "margin_x": 25,
+    "margin_y": 25,
+    "anchor": "bottom_right",
+    "offset_x": 0,
+    "offset_y": 0,
+    "signature_offset_y": 0,
+    "color": [255, 255, 255],
+    "latin_opacity": 0.5,
+    "chinese_opacity": 0.5,
+    "signature_opacity": 0.5
+  },
+  "resources": {
+    "latin_bold": "project:trajan-pro-bold",
+    "chinese": "project:fangzheng-shengshi-kaishu",
+    "signature": "project:name-signature"
+  },
+  "categories": {
+    "aviation": {
+      "content_font_role": "latin_bold",
+      "separator": "|"
+    },
+    "railway": {
+      "content_font_role": "latin_bold",
+      "separator": "|"
+    },
+    "landscape": {
+      "content_font_role": "chinese",
+      "separator": "|"
+    }
+  }
+}

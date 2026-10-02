@@ -34,6 +34,23 @@ jobs:
           python -m ruff check src tests scripts packaging
           python -m ruff format --check src tests scripts packaging
           python -m mypy src/aim_tool
+      - name: Check public watermark template packaging
+        run: |
+          python -m pip wheel --no-deps --no-build-isolation --wheel-dir dist .
+          python - <<'PYCODE'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          wheel, = Path("dist").glob("auto_image_mark_tool-*.whl")
+          with ZipFile(wheel) as package:
+              names = package.namelist()
+          assert "aim_tool/resources/default_templates.json" in names
+          assert not any(
+              token in name
+              for name in names
+              for token in ("NAME.png", "TrajanPro", "FangZheng", "DSC_0168")
+          )
+          PYCODE
       - name: Test package and GUI bootstrap
         run: |
           python -m pytest tests/unit -q
