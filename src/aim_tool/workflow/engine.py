@@ -108,12 +108,16 @@ def _validate_parameters(spec: StepSpec, implementation: Step) -> None:
             raise WorkflowError(f"Invalid {spec.component_id} parameter: {name}")
 
 
-def build_plan(job: BatchJob, registry: StepRegistry) -> ExecutionPlan:
+def build_plan(
+    job: BatchJob, registry: StepRegistry, *, cancelled: Event | None = None
+) -> ExecutionPlan:
     """Reject every unsafe item before any step can execute."""
     enabled = _validate_order(job, registry)
     planned: list[PlannedItem] = []
     seen_ids: set[object] = set()
     for photo in job.photos:
+        if cancelled is not None and cancelled.is_set():
+            raise WorkflowError("Preflight cancelled")
         if photo.id in seen_ids:
             raise WorkflowError(f"Duplicate photo ID: {photo.id}")
         seen_ids.add(photo.id)
@@ -125,6 +129,8 @@ def build_plan(job: BatchJob, registry: StepRegistry) -> ExecutionPlan:
         kind = source_kind
         steps: list[PlannedStep] = []
         for spec in enabled:
+            if cancelled is not None and cancelled.is_set():
+                raise WorkflowError("Preflight cancelled")
             implementation = registry.get(spec.component_id)
             _validate_parameters(spec, implementation)
             if source_kind not in implementation.source_kinds:

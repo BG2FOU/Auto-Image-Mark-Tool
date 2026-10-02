@@ -206,3 +206,18 @@ def test_component_parameter_schema_is_checked_before_running(tmp_path: Path) ->
         run_plan(build_plan(BatchJob((item,), workflow, tmp_path / "output"), components))[0].status
         == ItemStatus.SUCCESS
     )
+
+
+def test_preflight_can_be_cancelled_without_creating_output(tmp_path: Path) -> None:
+    source = tmp_path / "cancel.jpg"
+    source.write_bytes(b"test")
+    cancellation = Event()
+    cancellation.set()
+    registered = registry()
+    with pytest.raises(WorkflowError, match="Preflight cancelled"):
+        build_plan(
+            BatchJob((PhotoItem(source, tmp_path),), preset("location_only"), tmp_path / "out"),
+            registered,
+            cancelled=cancellation,
+        )
+    assert not (tmp_path / "out").exists()
