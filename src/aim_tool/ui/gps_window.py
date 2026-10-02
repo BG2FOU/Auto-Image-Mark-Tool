@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from threading import Event
 from uuid import UUID, uuid4
 
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -29,27 +28,14 @@ from aim_tool.domain import BatchJob, ItemResult, ItemStatus, PhotoItem
 from aim_tool.services.exiftool import ExifTool, validate_coordinates
 from aim_tool.services.storage import ConfigStore
 from aim_tool.ui.location_panel import LocationPanel
-from aim_tool.workflow.engine import ExecutionPlan, build_plan, run_plan
+from aim_tool.ui.workers import BatchWorker
+from aim_tool.workflow.engine import ExecutionPlan, build_plan
 from aim_tool.workflow.registry import StepRegistry, preset
 from aim_tool.workflow.steps import ExportStep, LocationStep
 
 
-class GpsWorker(QThread):
-    progress = Signal(str, str)
-    completed = Signal(object)
-
-    def __init__(self, plan: ExecutionPlan, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.plan = plan
-        self.cancelled = Event()
-
-    def run(self) -> None:
-        results = run_plan(
-            self.plan,
-            cancelled=self.cancelled,
-            progress=lambda photo, message: self.progress.emit(str(photo.id), message),
-        )
-        self.completed.emit(results)
+class GpsWorker(BatchWorker):
+    """Preserve the GPS worker API while sharing the batch signal bridge."""
 
 
 class GpsWindow(QMainWindow):
@@ -346,6 +332,8 @@ class GpsWindow(QMainWindow):
 
     def _on_completed(self, results: tuple[ItemResult, ...]) -> None:
         for result in results:
+            for warning in result.warnings:
+                self._message(f"警告：{warning}")
             status = result.status.value
             for row in range(self.table.rowCount()):
                 check = self.table.item(row, 0)
