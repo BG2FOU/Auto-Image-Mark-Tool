@@ -9,6 +9,7 @@ import pytest
 from aim_tool.domain import LocationPreset, PhotoItem
 from aim_tool.services.output import OutputError, commit_no_overwrite, output_path
 from aim_tool.services.storage import AppConfig, ConfigError, ConfigStore
+from aim_tool.services.watermark import WatermarkResources
 from aim_tool.workflow.registry import preset
 
 
@@ -82,3 +83,23 @@ def test_corrupt_current_config_cannot_replace_good_backup(tmp_path: Path) -> No
     with pytest.raises(ConfigError, match="Invalid configuration"):
         store.save(AppConfig())
     assert store.backup.read_bytes() == healthy_backup
+
+
+def test_watermark_settings_corruption_does_not_overwrite_backup(
+    tmp_path: Path, synthetic_watermark_resources: WatermarkResources
+) -> None:
+    from aim_tool.services.storage import WatermarkSettings, WatermarkSettingsStore
+
+    store = WatermarkSettingsStore(tmp_path / "settings.json")
+    first = WatermarkSettings(synthetic_watermark_resources, {"font_size_pt": 24})
+    store.save(first)
+    store.save(WatermarkSettings(synthetic_watermark_resources, {"font_size_pt": 36}))
+    assert store.load().params["font_size_pt"] == 36
+    store.path.write_text("broken")
+    with pytest.raises(ConfigError):
+        store.load()
+    with pytest.raises(ConfigError):
+        store.save(first)
+    assert store.path.read_text() == "broken"
+    assert store.restore_backup().params["font_size_pt"] == 24
+    assert store.load() == first

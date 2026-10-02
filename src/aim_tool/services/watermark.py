@@ -112,19 +112,26 @@ def _scaled_signature(path: Path, width: int, opacity: float) -> Image.Image:
     return signature
 
 
+def watermark_scale(size: tuple[int, int], config: WatermarkConfig) -> float:
+    """Use normalized pixel dimensions, independently of JPEG or display DPI."""
+    _validate(config)
+    width, height = size
+    if width <= 0 or height <= 0:
+        raise ValueError("Image size must be positive")
+    return (
+        min(width / config.base_width, height / config.base_height)
+        if width >= height
+        else min(width / config.base_height, height / config.base_width)
+    )
+
+
 def render_watermark_layer(
     size: tuple[int, int], config: WatermarkConfig, resources: WatermarkResources
 ) -> Image.Image:
     """Render an RGBA layer in final image coordinates; never modify assets."""
     _validate(config)
     width, height = size
-    if width <= 0 or height <= 0:
-        raise ValueError("Image size must be positive")
-    scale = (
-        min(width / config.base_width, height / config.base_height)
-        if width >= height
-        else min(width / config.base_height, height / config.base_width)
-    )
+    scale = watermark_scale(size, config)
     pixels = max(1, round(config.font_size_pt * config.base_ppi / 72 * scale))
     spans = _spans(config)
     latin_text = "".join(text for text, chinese in spans if not chinese)

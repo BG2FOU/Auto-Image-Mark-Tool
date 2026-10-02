@@ -215,7 +215,11 @@ class WatermarkStep:
             chinese_opacity=value("chinese_opacity", config.chinese_opacity),
             signature_opacity=value("signature_opacity", config.signature_opacity),
         )
-        return config, photo.edits.get("date_source", resolved.source)
+        return config, photo.edits.get("capture_date_source", resolved.source)
+
+    def configuration(self, photo: PhotoItem, spec: StepSpec) -> tuple[WatermarkConfig, str]:
+        """Expose the shared date and layout snapshot to an asynchronous preview."""
+        return self._config(photo, spec)
 
     def validate(self, item: PhotoItem, spec: StepSpec) -> None:
         from aim_tool.services.images import prepare_jpeg

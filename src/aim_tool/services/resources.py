@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
@@ -74,3 +75,13 @@ def identify_watermark_assets(resources: WatermarkResources) -> WatermarkAssetId
         identify_font(resources.chinese_font, resources.chinese_face),
         identify_signature(resources.signature),
     )
+
+
+def default_local_resources() -> WatermarkResources:
+    """Resolve development defaults or portable user assets without scanning data."""
+    root = (
+        Path(sys.executable).resolve().parent
+        if getattr(sys, "frozen", False)
+        else Path(__file__).resolve().parents[3]
+    )
+    return local_project_resources(root)
