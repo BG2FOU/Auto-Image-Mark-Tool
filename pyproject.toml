@@ -52,6 +52,7 @@ where = ["src"]
 version = {attr = "aim_tool.__version__"}
 
 [tool.pytest.ini_options]
+addopts = "--import-mode=importlib"
 testpaths = ["tests"]
 markers = [
   "raw: requires a real RAW sample",

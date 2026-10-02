@@ -51,10 +51,6 @@ jobs:
               for token in ("NAME.png", "TrajanPro", "FangZheng", "DSC_0168")
           )
           PYCODE
-      - name: Test package and GUI bootstrap
-        run: |
-          python -m pytest tests/unit -q
-          python -m pytest tests/gui -q
       - name: Verify pinned ExifTool
         shell: pwsh
         run: |
@@ -62,5 +58,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $version = (& tools/exiftool/exiftool.exe -ver).Trim()
           if ($version -ne '13.59') { throw "Unexpected ExifTool version: $version" }
+      - name: Test package and GUI bootstrap
+        run: |
+          python -m pytest tests/unit -q
+          python -m pytest tests/gui --require-real-assets -q
       - name: Verify real JPG metadata and watermark pipelines
         run: python -m pytest tests/integration/test_metadata.py tests/integration/test_pipeline.py -m 'not visual' --require-real-assets -q

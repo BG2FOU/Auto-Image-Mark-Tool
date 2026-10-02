@@ -46,7 +46,7 @@ def test_async_preview_coalesces_and_matches_actual_geometry(
     panel.request(photo, WatermarkSettings(synthetic_watermark_resources))
     panel.request(photo, WatermarkSettings(synthetic_watermark_resources, {"font_size_pt": 24}))
     qtbot.waitUntil(lambda: not panel.busy, timeout=20000)
-    assert panel.last_result is not None
+    assert panel.last_result is not None, panel.caption.text()
     assert panel.last_result.generation == 2
     assert panel.last_result.size == (1007, 672)
     assert "字号 17 px" in panel.caption.text()
