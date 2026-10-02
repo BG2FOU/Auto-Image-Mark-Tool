@@ -75,9 +75,7 @@ def main() -> int:
     docs = stage / f"usr/share/doc/{PACKAGE}"
     docs.mkdir(parents=True)
     shutil.copy2(ROOT / "LICENSE", docs / "copyright")
-    shutil.copy2(
-        ROOT / "packaging/GPS_GUI_THIRD_PARTY_NOTICES.md", docs / "THIRD_PARTY_NOTICES.md"
-    )
+    shutil.copy2(ROOT / "packaging/GPS_GUI_THIRD_PARTY_NOTICES.md", docs / "THIRD_PARTY_NOTICES.md")
     shutil.copy2(runtime / "LICENSE", docs / "ExifTool-LICENSE")
     control = stage / "DEBIAN/control"
     control.parent.mkdir()
