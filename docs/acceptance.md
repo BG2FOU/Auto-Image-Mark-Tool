@@ -218,3 +218,6 @@ Linux 本地完整 onedir 与 DEB（约 72 MB）构建通过；目录程序和 D
 
 
 运行 37097707362：原生 Windows 源码回归和 DLL 路径恢复断言均通过；ASCII 目录冻结自测全部通过，中文冻结目录仍报 perl exiftool.pl Invalid argument，DLL 隔离没有消除此问题。Linux 完整包通过。S9 中文目录门禁未满足，S10 标签和新 Release 未创建。新增失败诊断仅比对固定包与冻结包内 Perl/script 哈希，并从外部 Python 在系统 PATH 下执行相同 Perl、读取 DOS 短路径来区分内容与启动路径问题；不删除门禁，不改工具版本，不猜测最终原因。
+
+
+运行 37098067587：中文冻结目录仍报 Perl Invalid argument，随后诊断脚本输出中文路径时因 Windows 默认 cp1252 编码退出，未得到所需比对结果。Windows 发布构建任务显式设置 PYTHONIOENCODING=utf-8，只改变 Python 标准输入输出编码，不改变 ExifTool 参数、工具版本或中文目录门禁。等待新原生诊断，不认定主故障已修复。五小时额度已可靠恢复至剩余 97%，符合计划恢复条件。
