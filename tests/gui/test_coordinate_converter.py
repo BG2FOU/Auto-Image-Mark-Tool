@@ -57,6 +57,7 @@ def test_reverse_result_cannot_be_saved_as_wgs84(qtbot: QtBot, tmp_path: Path) -
 
 def test_escape_waits_for_conversion_worker(qtbot: QtBot, tmp_path: Path, monkeypatch) -> None:
     from threading import Event
+
     from aim_tool.ui import coordinate_converter
 
     started, release = Event(), Event()
