@@ -1,4 +1,4 @@
-name: Full JPG build and release
+name: Photo tool build and release
 
 on:
   push:

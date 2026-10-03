@@ -83,8 +83,11 @@ def main() -> int:
             raise ValueError("Build evidence does not match source")
         if (info["python"], info["pyinstaller"], info["exiftool"]) != ("3.12.3", "6.22.3", "13.59"):
             raise ValueError("Build toolchain does not match pinned versions")
-        if info["private_assets"] != "excluded" or info["nef"] != "deferred":
-            raise ValueError("Release scope does not match the JPG edition")
+        if (
+            info["private_assets"] != "excluded"
+            or info["nef"] != "gps_only_nikon_z5_14bit_lossless"
+        ):
+            raise ValueError("Release scope does not match the verified GPS/watermark edition")
     print(tag)
     return 0
 

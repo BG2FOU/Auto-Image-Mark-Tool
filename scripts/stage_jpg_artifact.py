@@ -7,6 +7,8 @@ import shutil
 import sys
 from pathlib import Path
 
+from aim_tool import __version__
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -37,7 +39,7 @@ def main() -> int:
             base_dir=bundle.name,
         )
     else:
-        (deb,) = (ROOT / "dist").glob("auto-image-mark-tool_*.deb")
+        deb = ROOT / f"dist/auto-image-mark-tool_{__version__.replace('rc', '~rc')}_amd64.deb"
         shutil.copy2(deb, destination / deb.name)
     return 0
 

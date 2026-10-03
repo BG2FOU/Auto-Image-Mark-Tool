@@ -248,7 +248,6 @@ def test_gui_mixed_jpg_nef_gps_batch_without_conversion_or_watermark_assets(
         settings_store=WatermarkSettingsStore(tmp_path / "settings.json"),
         location_store=ConfigStore(tmp_path / "locations.json"),
         workflow_store=ConfigStore(tmp_path / "workflows.json"),
-        allow_nef_after_viewer_check=True,
     )
     qtbot.addWidget(window)
     window.show()

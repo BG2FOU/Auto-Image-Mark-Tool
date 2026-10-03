@@ -16,7 +16,7 @@ class AboutDialog(QDialog):
         layout.addWidget(heading)
         layout.addWidget(QLabel(f"版本 {__version__} · ©BG2FOU"))
         information = QLabel(
-            '本地 JPG 坐标与版权水印工具<br><br><a href="https://github.com/BG2FOU/Auto-Image-Mark-Tool">项目仓库与更新</a><br><a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a><br><br>字体、签名与照片由用户在本机提供。'
+            'JPG 坐标与版权水印；NEF 仅坐标<br><br><a href="https://github.com/BG2FOU/Auto-Image-Mark-Tool">项目仓库与更新</a><br><a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a><br><br>字体、签名与照片由用户在本机提供。'
         )
         information.setWordWrap(True)
         information.setOpenExternalLinks(True)

@@ -84,7 +84,7 @@ class MainWindow(QMainWindow):
         settings_store: WatermarkSettingsStore | None = None,
         location_store: ConfigStore | None = None,
         workflow_store: ConfigStore | None = None,
-        allow_nef_after_viewer_check: bool = False,
+        allow_nef_after_viewer_check: bool = True,
     ) -> None:
         super().__init__()
         self.setWindowTitle("Auto Image Mark Tool")

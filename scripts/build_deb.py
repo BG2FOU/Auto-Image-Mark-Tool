@@ -77,8 +77,8 @@ def main() -> int:
         "libxcb-icccm4, libxcb-image0, libxcb-keysyms1, libxcb-randr0, "
         "libxcb-render-util0, libxcb-shape0, libxcb-xfixes0, libxcb-xkb1\n"
         "Maintainer: BG2FOU <johnherbertwang@outlook.com>\n"
-        "Description: JPG coordinates and watermark GUI for Auto Image Mark Tool\n"
-        " Writes GPS and adaptive watermarks to copies of JPEG photos.\n",
+        "Description: Photo coordinates and JPG watermark GUI for Auto Image Mark Tool\n"
+        " Writes GPS to JPEG and verified NEF copies; JPEG adaptive watermarks.\n",
         encoding="utf-8",
     )
     output = ROOT / f"dist/{PACKAGE}_{VERSION}_amd64.deb"

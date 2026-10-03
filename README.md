@@ -1,14 +1,14 @@
 # Auto-Image-Mark-Tool
 
-本地 JPG/JPEG 坐标与版权水印批处理工具。使用 PySide6 图形页面，先预检、再写入输出副本，不覆盖原片或已有成品。许可证保留 **CC BY-SA 4.0**，`©BG2FOU`。
+本地照片坐标与 JPG/JPEG 版权水印批处理工具。使用 PySide6 图形页面，先预检、再写入输出副本，不覆盖原片或已有成品。许可证保留 **CC BY-SA 4.0**，`©BG2FOU`。
 
 ## 下载
 
-完整 JPG 图形预发布 [v0.3.0-rc.1](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.3.0-rc.1)：
+JPG 水印与 NEF 坐标图形预发布 [v0.4.0-rc.1](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.1)：
 
-- [Windows x64 单文件 EXE](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/download/v0.3.0-rc.1/AutoImageMarkTool-v0.3.0-rc.1-windows-x64.exe)
-- [Windows x64 目录 ZIP](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/download/v0.3.0-rc.1/AutoImageMarkTool-v0.3.0-rc.1-windows-x64.zip)
-- [Ubuntu 24.04 / Linux amd64 DEB](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/download/v0.3.0-rc.1/auto-image-mark-tool_0.3.0-rc.1_amd64.deb)
+- [Windows x64 单文件 EXE](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/download/v0.4.0-rc.1/AutoImageMarkTool-v0.4.0-rc.1-windows-x64.exe)
+- [Windows x64 目录 ZIP](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/download/v0.4.0-rc.1/AutoImageMarkTool-v0.4.0-rc.1-windows-x64.zip)
+- [Ubuntu 24.04 / Linux amd64 DEB](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/download/v0.4.0-rc.1/auto-image-mark-tool_0.3.0-rc.1_amd64.deb)
 
 Windows 双击 EXE，或解压 ZIP 后运行其中的 EXE；Linux 用 `sudo apt install ./auto-image-mark-tool_0.3.0-rc.1_amd64.deb` 安装，再启动 `auto-image-mark-tool`。使用 Release 附带的 SHA256SUMS.txt 校验下载；完整许可与构建来源随附件提供。无需另装 Python 或 ExifTool，水印字体和签名由用户在本地选择。
 
@@ -18,7 +18,7 @@ Windows 双击 EXE，或解压 ZIP 后运行其中的 EXE；Linux 用 `sudo apt 
 
 | 流程 | 输入 | 输出 |
 | --- | --- | --- |
-| 坐标 | JPG / JPEG | 原文件名及扩展名，图像像素不重编码 |
+| 坐标 | JPG / JPEG / 已验证 NEF | 原文件名及扩展名，副本写入，不重编码或显影 |
 | 水印 | JPG / JPEG | `_marked.jpg`，保留像素尺寸和拍摄信息 |
 | 坐标＋水印 | JPG / JPEG | `_marked.jpg`，保留本次写入的新 GPS |
 
@@ -28,7 +28,7 @@ Windows 双击 EXE，或解压 ZIP 后运行其中的 EXE；Linux 用 `sudo apt 
 - 后台预检、异步预览、原像素水印局部、拖动位置、取消、失败项重试和结果报告。
 - 字体和透明签名在本机选择，支持保存个人默认及恢复项目默认。
 
-**NEF 坐标、显影和水印列入后续版本，当前页面只导入 JPG/JPEG。** 字体、签名、照片及真实坐标只留在本地，不提交或捆绑到公开构建物。
+**NEF 仅支持已验证的 Nikon Z 5、14-bit lossless 编码（RAW 6040×4032）的坐标写入，输出仍为 NEF。显影及水印暂缓，其他机型或编码明确拒绝。** 字体、签名、照片及真实坐标只留在本地，不提交或捆绑到公开构建物。
 
 ## 运行与测试
 
@@ -40,7 +40,7 @@ python -m pip install --no-deps --no-build-isolation -e .
 python -m aim_tool
 ```
 
-`python -m aim_tool --gps-only` 保留独立坐标预览页面。主页面操作见 [用户手册](docs/user-guide.md)。旧 GPS 预发布 `v0.2.0-rc.2` 保留；完整 JPG 版请使用上面的 `v0.3.0-rc.1`。
+`python -m aim_tool --gps-only` 保留独立坐标预览页面。主页面操作见 [用户手册](docs/user-guide.md)。旧 GPS 预发布 `v0.2.0-rc.2` 与 JPG 版 `v0.3.0-rc.1` 保留；新版请使用上面的 `v0.4.0-rc.1`。旧 `--gps-only` 预览仍保留原验收门禁，NEF 请使用主页面的“坐标”流程。
 
 ```bash
 QT_QPA_PLATFORM=offscreen python -m pytest tests/unit tests/integration tests/gui -m 'not raw' -q

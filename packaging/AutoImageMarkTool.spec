@@ -1,5 +1,5 @@
 # ruff: noqa: F821
-"""One reviewed full-JPG spec; AIM_BUILD_MODE selects onedir or onefile."""
+"""One reviewed GPS/JPG-watermark spec; AIM_BUILD_MODE selects onedir or onefile."""
 
 import os
 import subprocess
