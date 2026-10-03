@@ -200,3 +200,6 @@ Linux 本地完整 onedir 与 DEB（约 72 MB）构建通过；目录程序和 D
 
 
 首次完整构建运行 37095755913 的 Windows 混合 unit/GUI/integration 进程在 Qt 事件处理中 Aborted；相同源提交 5ce2867 的现有分进程 CI 37095744525 已成功。没有足够日志判定该混合进程退出的应用根因，发布工作流改为与现有 CI 相同的三个独立进程，GUI 输出逐用例日志，等待原生重测。离线冻结冒烟同时将 PATH 限制为系统目录并清除外部 Qt 插件路径，以检查不使用安装的 Python/ExifTool/Qt。
+
+
+第二轮 37095957279：两个平台的分进程 107 项回归通过；Linux 完整 DEB、解包自测、资源审计成功。Windows onedir 实际冻结完成后，冒烟启动器把 Windows 环境复制为普通 dict 后按 SystemRoot 混合大小写取键，导致 KeyError（尚未启动成品）。修正为使用 Windows 原生大小写不敏感的 os.environ 读取系统目录，保持 PATH 隔离；等待同提交原生重测，不把“冻结完成”算作冒烟成功。

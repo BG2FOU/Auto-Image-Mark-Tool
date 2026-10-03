@@ -29,7 +29,7 @@ def main() -> int:
         environment.pop("QT_PLUGIN_PATH", None)
         environment.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)
         if sys.platform == "win32":
-            system = Path(environment["SystemRoot"])
+            system = Path(os.environ["SystemRoot"])
             environment["PATH"] = os.pathsep.join((str(system / "System32"), str(system)))
         else:
             environment["PATH"] = "/usr/bin:/bin"
