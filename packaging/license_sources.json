@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "archives": [
+    {
+      "name": "qtbase",
+      "version": "6.11.2",
+      "url": "https://codeload.github.com/qt/qtbase/tar.gz/refs/tags/v6.11.2",
+      "source": "https://github.com/qt/qtbase/tree/v6.11.2",
+      "sha256": "06cd7aa6b3ab19cb5a1664a2891ef0df960f78c97fa31b80b1d6d7ee70688414"
+    },
+    {
+      "name": "qtimageformats",
+      "version": "6.11.2",
+      "url": "https://codeload.github.com/qt/qtimageformats/tar.gz/refs/tags/v6.11.2",
+      "source": "https://github.com/qt/qtimageformats/tree/v6.11.2",
+      "sha256": "76f5477d0216f37a5f44ddbca1decd4df245c2db39baccb1025eb66cfe50d8f8"
+    },
+    {
+      "name": "qtsvg",
+      "version": "6.11.2",
+      "url": "https://codeload.github.com/qt/qtsvg/tar.gz/refs/tags/v6.11.2",
+      "source": "https://github.com/qt/qtsvg/tree/v6.11.2",
+      "sha256": "52a89c4efcb0cbe57bf85c71f5db50ef59184eeadf9972351202a9261a9bfa6e"
+    },
+    {
+      "name": "qtwayland",
+      "version": "6.11.2",
+      "url": "https://codeload.github.com/qt/qtwayland/tar.gz/refs/tags/v6.11.2",
+      "source": "https://github.com/qt/qtwayland/tree/v6.11.2",
+      "sha256": "ed13b1812ad682978034298361b1eb3995bc447168fc32ba2bd7853d9172835f"
+    },
+    {
+      "name": "pyside-setup",
+      "version": "6.11.2",
+      "url": "https://codeload.github.com/pyside/pyside-setup/tar.gz/refs/tags/v6.11.2",
+      "source": "https://github.com/pyside/pyside-setup/tree/v6.11.2",
+      "sha256": "7a2a395498b738b715e70a4c1c4f60f9f422c4b40065d31fd66a9bc99c6200d1"
+    },
+    {
+      "name": "openpyxl",
+      "version": "3.1.5",
+      "url": "https://files.pythonhosted.org/packages/3d/f9/88d94a75de065ea32619465d2f77b29a0469500e99012523b91cc4141cd1/openpyxl-3.1.5.tar.gz",
+      "sha256": "cf0e3cf56142039133628b5acffe8ef0c12bc902d2aadd3e0fe5878dc08d1050",
+      "source": "https://pypi.org/project/openpyxl/3.1.5/"
+    },
+    {
+      "name": "et_xmlfile",
+      "version": "2.0.0",
+      "url": "https://files.pythonhosted.org/packages/d3/38/af70d7ab1ae9d4da450eeec1fa3918940a5fafb9055e934af8d6eb0c2313/et_xmlfile-2.0.0.tar.gz",
+      "sha256": "dab3f4764309081ce75662649be815c4c9081e88f0837825f90fd28317d4da54",
+      "source": "https://pypi.org/project/et_xmlfile/2.0.0/"
+    },
+    {
+      "name": "python",
+      "version": "3.12.3",
+      "url": "https://codeload.github.com/python/cpython/tar.gz/refs/tags/v3.12.3",
+      "source": "https://github.com/python/cpython/tree/v3.12.3",
+      "sha256": "5c91f5e64a3c85c582cd0454edafb820d4f6226a8eab232cd05185de60350c8d"
+    }
+  ]
+}

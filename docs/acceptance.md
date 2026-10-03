@@ -186,3 +186,14 @@ Linux x86_64、Intel N95（4 核）、7.5 GiB 内存，使用同一张授权 503
 ### S9：冻结自测入口
 
 完整 JPG 版新增 `--self-test-jpg --report`；既有 GPS `--self-test` 保持有效，GPS 包明确排除完整 JPG 自测模块。完整自测在临时目录生成自有方块字形字体、纯色签名、带方向/日期/sRGB 的 JPG 和 XLSX；通过真实主页面执行 GPS+水印并读回，检查设置、地点保存、预览、方向、ICC、原日期、源哈希、报告及线程/临时文件清理。源码环境自测通过，主页面/预览/启动定向 GUI 8 项通过，Ruff 与 mypy 通过。`scripts/smoke_exe.py` 从仓库外的临时 cwd 启动冻结程序，移除 AIM_EXIFTOOL/PYTHONPATH 并要求 bundled ExifTool 和 frozen 标志；冻结产物仍待实际构建验证。
+
+
+### S9：完整 JPG Linux 冻结包与发布准备
+
+版本提升为 0.3.0rc1（拟发布 v0.3.0-rc.1），两平台复用单一 spec。固定版本上游许可归档经 SHA256 验证；文本许可、Qt 归属元数据、Python 依赖许可和实际 Linux 系统库版权随包收集。公开包只包含公开模板、程序、ExifTool 与许可，不收集 data、私人字体/签名或 RAW 实现。目录 ZIP 同时提供可替换的依赖库。项目 CC BY-SA 4.0 保持不变，EXE 未做代码签名。
+
+Linux 本地完整 onedir 与 DEB（约 72 MB）构建通过；目录程序和 DEB 解包程序均在仓库外临时 cwd 离线自测通过，12 类检查全部成功：GUI、设置、地点、预览、GPS+水印、方向、ICC、原日期、原片哈希、清理、报告、XLSX。包内容未发现照片、字体、签名或 rawpy/LibRaw。Windows 原生完整 onedir/onefile、中文含空格路径和新发布链尚待自身提交 CI 验证；不将此本地结果认定为完成 S9/S10。
+
+新增 assemble_release/stage_jpg_artifact 两个构建辅助脚本以落实计划中的资源审计、版本化资产及校验清单，已同步计划文件清单；这是实现拆分，不扩展产品功能。新增完整 release workflow 保留旧 GPS 发布流程，以未发布草稿恢复、同标签互斥、下载回读校验及禁止覆盖已发布包为门禁。
+
+发布准备本地检查：与公开 CI 相同且不依赖私人素材的 JPG 单元/GUI/元数据/流水线 107 passed、1 个视觉用例排除；Ruff、格式、mypy、git diff 检查通过；固定版本 actionlint 1.7.7 校验新 release workflow 通过。上一次源码自测提交 ae43fdf 的原生 Windows CI 37095300564 已通过。

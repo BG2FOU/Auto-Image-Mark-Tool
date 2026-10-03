@@ -1,0 +1,38 @@
+# 完整 JPG 版构建与发布
+
+本期版本源为 `src/aim_tool/__init__.py`（0.3.0rc1），标签为 `v0.3.0-rc.1`。仅支持 JPG/JPEG；NEF 延后。旧 GPS-only 构建脚本和 Release 保留。
+
+## 固定工具链
+
+Python 3.12.3 x64、pip 24.0、PyInstaller 6.22.3、ExifTool 13.59。依赖按 `requirements-dev.lock` 的哈希安装，再用 `pip install --no-deps --no-build-isolation -e .` 安装项目。Windows 工具通过 `scripts/fetch_tools.py --manifest packaging/toolchain.json` 准备；Linux ExifTool 源归档 URL 和 SHA256 在同一清单中。
+
+Qt/Python 等许可来源归档由 `packaging/license_sources.json` 固定版本、URL 与 SHA256。`collect_licenses.py` 只读取其中的许可文本和归属元数据，不捆绑整个源代码；上游对应版本源码下载方式保留在清单中。Linux 另按实际收集的系统库加入系统版权文件。项目保持 CC BY-SA 4.0；各依赖适用自身许可，完整声明见根目录 `THIRD_PARTY_NOTICES.md`。
+
+## 本地构建
+
+Windows：
+
+```powershell
+.\scripts\build.ps1 -Mode onedir
+.\scripts\build.ps1 -Mode onefile
+```
+
+Linux（Ubuntu 24.04 / amd64 基线）：
+
+```sh
+QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/build_deb.py
+```
+
+两平台复用 `packaging/AutoImageMarkTool.spec`。构建脚本会运行 `--self-test-jpg --report`，从源码目录外启动实际冻结程序，清除外部 ExifTool/PYTHONPATH，使用临时自有合成字体/签名/JPG/XLSX，验证 GUI、地点保存、预览、GPS+水印、方向、ICC、拍摄日期、源哈希和清理。旧 `--self-test` GPS 接口保持不变。自测不联网，不读取用户照片。DEB 解包后再执行同一自测。
+
+`dist/AutoImageMarkTool/` 为目录版；Windows `dist/AutoImageMarkTool.exe` 为单文件版；Linux DEB 版本使用 Debian 的 `0.3.0~rc1` 排序。字体、签名必须由用户在本地设置中选择，首次启动不会自带私人素材。冻结自测不代表商用字体的人工视觉验收，也不代替独立 Windows 10 桌面交互检查。
+
+## CI 和发布
+
+`.github/workflows/release.yml` 固定 Actions SHA、Python 和 Windows 2022/Ubuntu 24.04 runner。默认只有读取权限，发布 job 才获得 `contents:write`。主分支 `workflow_dispatch` 留空 tag、publish=false 可以构建、测试并生成附件而不创建 Release。
+
+正式发布前必须在同一提交上检查 CI。推送现存且与版本一致的 `v*` 标签后自动执行：版本与提交校验 → 锁定安装/测试 → Windows onedir 与 onefile/中文含空格路径冒烟、Linux DEB 冒烟 → 资源审计 → 生成附件与 SHA256 → 草稿上传 → 下载回读校验 → 发布。
+
+产物包含 EXE、可替换依赖库的目录 ZIP、DEB、完整 `LICENSES.zip`、第三方声明、`BUILD_INFO.json` 和 `SHA256SUMS.txt`。BUILD_INFO 记录源 SHA、工具版本及无签名状态。EXE 未做代码签名；可使用哈希核验下载内容。禁止上传 `data/`、私人字体/签名、demo 输出。
+
+恢复入口为 workflow_dispatch 的既有 tag 和 publish=true。同标签串行；仅允许更新未发布草稿，已发布内容不能静默替换。失败修复需提交并验证，新代码必须使用新版本/标签；不要移动已有标签。回滚使用上一份已发布包，不覆盖新版附件。依赖升级需重新生成锁文件、核对许可源哈希并走全部测试。

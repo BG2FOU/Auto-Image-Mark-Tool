@@ -377,6 +377,7 @@ JSON 带 `schema_version`，以临时文件+原子替换保存配置并保留最
 | 新增 | `scripts/build_jpg.py`、`scripts/build_deb.py` | 复用单一 spec 的跨平台冻结构建与完整 JPG DEB；Windows 由 build.ps1 调用。 |
 | 新增 | `scripts/build.ps1` | 检查版本和工具链，生成 Windows 版本信息，调用同一 spec，产物仅写 build/dist；检测外部命令退出码并失败即停止。 |
 | 新增 | `scripts/smoke_exe.py` | 带超时启动冻结程序自测，检查退出码和 JSON 结果、无残留进程；测试 Qt 初始化、资源、ExifTool、合成 JPEG GPS+水印输出。 |
+| 新增 | `scripts/assemble_release.py`、`scripts/stage_jpg_artifact.py` | 仅收集冻结产物及许可附件，审计私人资源并生成版本化资产、构建证据与校验清单。 |
 | 新增 | `scripts/check_release.py` | 核验标签与单一版本源一致、工具链/许可证/测试证据完整、产物/校验值存在；禁止版本错配发布。 |
 | 新增 | `.github/workflows/ci.yml` | PR/push 跑锁定安装、静态检查、单测/集成/GUI 测试，Windows onedir 构建和冒烟；最小读权限。 |
 | 新增 | `.github/workflows/release.yml` | `v*` 标签及显式手工恢复触发，复用同一检查/构建命令；onefile 冒烟、校验清单、Release 草稿上传后发布，发布 job 才给 contents:write。 |
@@ -475,7 +476,7 @@ powershell -NoProfile -File scripts/build.ps1 -Mode onefile
 Get-FileHash dist/AutoImageMarkTool.exe -Algorithm SHA256
 ```
 
-`build.ps1` 读取固定清单，不在内部默默升级依赖；外部命令任一失败返回非零。冻结程序提供 `--self-test --report <path>` 给 smoke 脚本调用，自测使用临时合成 JPEG、合法测试字体/签名，不依赖生产商用字体、不写原片、不联网。冻结自测不能代替真实 NEF/商用字体/交互验收。
+`build.ps1` 读取固定清单，不在内部默默升级依赖；外部命令任一失败返回非零。完整 JPG 冻结程序提供 `--self-test-jpg --report <path>` 给 smoke 脚本调用，既有 GPS `--self-test` 保持有效，自测使用临时合成 JPEG、合法测试字体/签名，不依赖生产商用字体、不写原片、不联网。冻结自测不能代替真实 NEF/商用字体/交互验收。
 
 ### 8.4 版本和自动 Release
 

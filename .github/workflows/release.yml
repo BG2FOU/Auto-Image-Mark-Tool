@@ -1,0 +1,205 @@
+name: Full JPG build and release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag for recovery (empty builds the selected ref without publishing)
+        type: string
+        default: ''
+      publish:
+        description: Publish the verified existing tag
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jpg-release-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      commit: ${{ steps.version.outputs.commit }}
+      tag: ${{ steps.version.outputs.tag }}
+      publish: ${{ steps.version.outputs.publish }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+      - name: Verify version and existing tag
+        id: version
+        env:
+          REQUESTED_TAG: ${{ inputs.tag }}
+          PUBLISH: ${{ github.event_name == 'push' || inputs.publish }}
+        run: |
+          tag=$(python3 scripts/check_release.py --source-only)
+          if [ "$GITHUB_EVENT_NAME" = 'push' ]; then REQUESTED_TAG="$GITHUB_REF_NAME"; fi
+          if [ "$PUBLISH" = 'true' ] && [ -z "$REQUESTED_TAG" ]; then
+            echo 'Publishing requires an existing tag' >&2
+            exit 1
+          fi
+          if [ -n "$REQUESTED_TAG" ]; then python3 scripts/check_release.py --tag "$REQUESTED_TAG" --source-only; fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
+
+  windows:
+    needs: prepare
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: bash
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12.3'
+      - name: Install locked dependencies and pinned ExifTool
+        run: |
+          python -m venv .venv
+          .venv/Scripts/python.exe -m pip install pip==24.0
+          .venv/Scripts/python.exe -m pip install --require-hashes -r requirements-dev.lock
+          .venv/Scripts/python.exe -m pip install --no-deps --no-build-isolation -e .
+          .venv/Scripts/python.exe -m pip check
+          .venv/Scripts/python.exe scripts/fetch_tools.py --manifest packaging/toolchain.json
+      - name: Static checks and JPG regressions
+        run: |
+          .venv/Scripts/python.exe -m ruff check src tests scripts packaging
+          .venv/Scripts/python.exe -m ruff format --check src tests scripts packaging
+          .venv/Scripts/python.exe -m mypy src/aim_tool
+          .venv/Scripts/python.exe -m pytest tests/unit tests/gui tests/integration/test_metadata.py tests/integration/test_pipeline.py -m 'not visual' --require-real-assets -q
+      - name: Build and smoke directory application
+        shell: pwsh
+        run: .\scripts\build.ps1 -Mode onedir
+      - name: Smoke offline application in a Chinese path with spaces
+        run: |
+          .venv/Scripts/python.exe - <<'PY'
+          import shutil
+          from pathlib import Path
+          target = Path('build/中文 离线程序/AutoImageMarkTool')
+          shutil.copytree('dist/AutoImageMarkTool', target)
+          PY
+          .venv/Scripts/python.exe scripts/smoke_exe.py --exe 'build/中文 离线程序/AutoImageMarkTool/AutoImageMarkTool.exe'
+      - name: Build and smoke single executable
+        shell: pwsh
+        run: .\scripts\build.ps1 -Mode onefile
+      - name: Audit and stage public artifacts
+        run: .venv/Scripts/python.exe scripts/stage_jpg_artifact.py --output build/windows-artifact
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: JPG-windows-x64
+          path: build/windows-artifact
+          if-no-files-found: error
+          retention-days: 7
+
+  linux:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12.3'
+      - name: Install declared runtime libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 libgl1 libfontconfig1 libfreetype6 libglib2.0-0t64 \
+            libdbus-1-3 libx11-6 libx11-xcb1 libxkbcommon0 libxkbcommon-x11-0 \
+            libxcb1 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xfixes0 libxcb-xkb1
+      - name: Install locked dependencies and pinned ExifTool
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install pip==24.0
+          .venv/bin/python -m pip install --require-hashes -r requirements-dev.lock
+          .venv/bin/python -m pip install --no-deps --no-build-isolation -e .
+          .venv/bin/python -m pip check
+          curl --fail --location --retry 3 https://codeload.github.com/exiftool/exiftool/tar.gz/refs/tags/13.59 --output /tmp/exiftool.tar.gz
+          echo '87d3317882fdae9cb4dcfe57a96a378d0132ffc02c731315bf128b19ddcf7aac  /tmp/exiftool.tar.gz' | sha256sum --check
+          mkdir -p tools
+          tar -xzf /tmp/exiftool.tar.gz -C tools
+      - name: JPG regressions
+        run: .venv/bin/python -m pytest tests/unit tests/gui tests/integration/test_metadata.py tests/integration/test_pipeline.py -m 'not visual' --require-real-assets -q
+      - name: Build and smoke DEB and extracted application
+        run: .venv/bin/python scripts/build_deb.py
+      - name: Audit and stage public artifacts
+        run: .venv/bin/python scripts/stage_jpg_artifact.py --output build/linux-artifact
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: JPG-linux-amd64
+          path: build/linux-artifact
+          if-no-files-found: error
+          retention-days: 7
+
+  assemble:
+    needs: [prepare, windows, linux]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          fetch-depth: 0
+      - name: Assemble checked assets
+        run: |
+          gh run download "$GITHUB_RUN_ID" --name JPG-windows-x64 --dir build/windows-artifact
+          gh run download "$GITHUB_RUN_ID" --name JPG-linux-amd64 --dir build/linux-artifact
+          python3 scripts/assemble_release.py --windows build/windows-artifact --linux build/linux-artifact
+          python3 scripts/check_release.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: JPG-release
+          path: dist/release
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: [prepare, assemble]
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          fetch-depth: 0
+      - name: Verify assets and recover only an unpublished draft
+        run: |
+          gh run download "$GITHUB_RUN_ID" --name JPG-release --dir dist/release
+          python3 scripts/check_release.py --tag "$RELEASE_TAG"
+          mkdir -p build
+          if gh release view "$RELEASE_TAG" --json isDraft > build/release-state.json 2>/dev/null; then
+            python3 -c "import json; assert json.load(open('build/release-state.json'))['isDraft'], 'Published releases cannot be replaced'"
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --draft --prerelease --title "Auto Image Mark Tool $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
+          fi
+          gh release upload "$RELEASE_TAG" dist/release/* --clobber
+          gh release download "$RELEASE_TAG" --dir build/release-download
+          python3 scripts/check_release.py --tag "$RELEASE_TAG" --dist build/release-download
+      - name: Publish verified draft
+        run: gh release edit "$RELEASE_TAG" --draft=false
