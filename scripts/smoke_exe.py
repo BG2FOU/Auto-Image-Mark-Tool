@@ -63,6 +63,7 @@ def main() -> int:
                 "cleanup",
                 "report",
                 "xlsx",
+                "nef_scope",
             ],
         }
         if completed.returncode != 0 or data != expected:

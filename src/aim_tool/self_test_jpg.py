@@ -20,6 +20,7 @@ from PySide6.QtWidgets import QApplication
 from aim_tool import __version__
 from aim_tool.domain import ItemStatus, LocationPreset
 from aim_tool.services.exiftool import ExifTool
+from aim_tool.services.nef_gps import require_tested_nef
 from aim_tool.services.storage import ConfigStore, WatermarkSettings, WatermarkSettingsStore
 from aim_tool.services.table_import import read_table
 from aim_tool.services.watermark import WatermarkResources
@@ -170,6 +171,33 @@ def run_self_test(report: Path) -> int:
                 _check(
                     read_table(root / "batch.xlsx")[0].values["subject"] == "B-1356", "XLSX failed"
                 )
+                # A renamed synthetic JPEG is deliberately NOT a valid supported NEF.
+                # Test packaging and rejection; this does not certify a real camera file.
+                invalid_nef = root / "unsupported.NEF"
+                invalid_nef.write_bytes(source.read_bytes())
+                try:
+                    require_tested_nef(tool, invalid_nef)
+                except ValueError:
+                    pass
+                else:
+                    raise RuntimeError("Unsupported NEF encoding was accepted")
+                window.add_photos((invalid_nef,))
+                window.table.selectRow(window.model.rowCount() - 1)
+                window._request_preview()
+                _check(
+                    window.preview.last_result is None
+                    and "NEF 仅写入坐标" in window.preview.caption.text(),
+                    "NEF unexpectedly decoded a JPG preview",
+                )
+                window.start()
+                _check(
+                    not window._busy and "NEF 仅支持坐标写入" in window.log.toPlainText(),
+                    "NEF watermark batch was not blocked",
+                )
+                _check(
+                    not (root / "output/unsupported_marked.jpg").exists(), "NEF converted to JPG"
+                )
+                _check("rawpy" not in sys.modules, "GPS workflow imported RAW development")
             finally:
                 window.close()
                 _wait(lambda: not window.has_active_workers)
@@ -190,6 +218,7 @@ def run_self_test(report: Path) -> int:
                     "cleanup",
                     "report",
                     "xlsx",
+                    "nef_scope",
                 ],
             )
     except Exception as error:  # noqa: BLE001 - windowless builds report all smoke failures

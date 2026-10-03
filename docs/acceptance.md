@@ -95,7 +95,8 @@ Get-Content -LiteralPath '.\jpg-self-test.json' -Encoding UTF8
 - 本地诊断副本在 `demo-output/nef-gps-review/DSC_0168.NEF`；原片、输出和本地检查 JSON 均不提交、不打包。该副本用于独立软件抽验，不是公开样片。
 - 新增 `services/nef_gps.py`，专门完成编码范围检查及压缩 RAW/缩略图/嵌入 JPEG 数据、ExifIFD/MakerNotes 的写后比对，不包含 RAW 显影。这是第 6 节文件清单的增补，避免在仍暂缓的 raw 显影模块中混入坐标功能。
 - 图形页面已接入 NEF 导入、坐标批处理、无 JPG 预览提示及水印前置阻止；默认写入门禁仍关闭，沿用 `allow_nef_after_viewer_check=False`，待本机型独立软件验收后再开放。
-- 尚需独立 Nikon 查看器或用户常用软件抽验；随后才可启用本机型、新版本构建及发布。其他机型、12-bit 或其他压缩编码明确拒绝。
+- 冻结自测新增 `nef_scope`：拒绝改名的合成 JPEG 作为 NEF、NEF 不解码预览、水印批次阻止，以及不加载 rawpy。它只验证打包和拒绝路径，不替代真实 NEF 成功写入或独立查看器验收。源码自测 13 类检查通过。
+- 尚需独立 Nikon 查看器或用户常用软件抽验；随后才可启用本机型并发布新版本。当前可先做保留门禁的候选包检查。其他机型、12-bit 或其他压缩编码明确拒绝。
 
 ## 历史验证记录
 
