@@ -33,7 +33,13 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["rawpy", "openpyxl", "fontTools", "aim_tool.ui.main_window"],
+    excludes=[
+        "rawpy",
+        "openpyxl",
+        "fontTools",
+        "aim_tool.ui.main_window",
+        "aim_tool.self_test_jpg",
+    ],
     noarchive=False,
 )
 pyz = PYZ(a.pure)
