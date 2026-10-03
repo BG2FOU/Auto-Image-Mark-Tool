@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -25,6 +26,13 @@ def main() -> int:
         environment["QT_QPA_PLATFORM"] = "offscreen"
         environment.pop("AIM_EXIFTOOL", None)
         environment.pop("PYTHONPATH", None)
+        environment.pop("QT_PLUGIN_PATH", None)
+        environment.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)
+        if sys.platform == "win32":
+            system = Path(environment["SystemRoot"])
+            environment["PATH"] = os.pathsep.join((str(system / "System32"), str(system)))
+        else:
+            environment["PATH"] = "/usr/bin:/bin"
         completed = subprocess.run(
             [str(executable), "--self-test-jpg", "--report", str(report)],
             cwd=temporary,

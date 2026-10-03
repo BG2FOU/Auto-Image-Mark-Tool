@@ -197,3 +197,6 @@ Linux 本地完整 onedir 与 DEB（约 72 MB）构建通过；目录程序和 D
 新增 assemble_release/stage_jpg_artifact 两个构建辅助脚本以落实计划中的资源审计、版本化资产及校验清单，已同步计划文件清单；这是实现拆分，不扩展产品功能。新增完整 release workflow 保留旧 GPS 发布流程，以未发布草稿恢复、同标签互斥、下载回读校验及禁止覆盖已发布包为门禁。
 
 发布准备本地检查：与公开 CI 相同且不依赖私人素材的 JPG 单元/GUI/元数据/流水线 107 passed、1 个视觉用例排除；Ruff、格式、mypy、git diff 检查通过；固定版本 actionlint 1.7.7 校验新 release workflow 通过。上一次源码自测提交 ae43fdf 的原生 Windows CI 37095300564 已通过。
+
+
+首次完整构建运行 37095755913 的 Windows 混合 unit/GUI/integration 进程在 Qt 事件处理中 Aborted；相同源提交 5ce2867 的现有分进程 CI 37095744525 已成功。没有足够日志判定该混合进程退出的应用根因，发布工作流改为与现有 CI 相同的三个独立进程，GUI 输出逐用例日志，等待原生重测。离线冻结冒烟同时将 PATH 限制为系统目录并清除外部 Qt 插件路径，以检查不使用安装的 Python/ExifTool/Qt。
