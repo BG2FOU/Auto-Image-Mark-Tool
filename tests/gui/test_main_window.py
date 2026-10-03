@@ -179,12 +179,19 @@ def test_close_waits_for_cancelled_preflight_without_output(
     assert not (tmp_path / "out").exists()
 
 
-def test_nef_is_not_imported_into_current_workspace(
+def test_nef_is_imported_but_watermark_is_blocked(
     qtbot: QtBot, tmp_path: Path, synthetic_watermark_resources: WatermarkResources
 ) -> None:
     source = tmp_path / "a.NEF"
     source.write_bytes(b"do not process")
     window = _window(qtbot, tmp_path, synthetic_watermark_resources)
     window.add_photos((source,))
-    assert window.model.rowCount() == 0
+    assert window.model.rowCount() == 1
+    window._request_preview()
+    assert window.preview.last_result is None
+    assert "NEF 仅写入坐标" in window.preview.caption.text()
+    window.output_edit.setText(str(tmp_path / "out"))
+    window.start()
+    assert "NEF 仅支持坐标写入" in window.log.toPlainText()
+    assert not (tmp_path / "out").exists()
     _close(qtbot, window)

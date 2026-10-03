@@ -12,7 +12,7 @@
 
 Windows 双击 EXE，或解压 ZIP 后运行其中的 EXE；Linux 用 `sudo apt install ./auto-image-mark-tool_0.3.0-rc.1_amd64.deb` 安装，再启动 `auto-image-mark-tool`。使用 Release 附带的 SHA256SUMS.txt 校验下载；完整许可与构建来源随附件提供。无需另装 Python 或 ExifTool，水印字体和签名由用户在本地选择。
 
-此预发布未做 Windows 代码签名。独立 Windows 10 桌面人工验收仍待完成，自动化与下载验收分别见 [验收记录](docs/acceptance.md)。
+此预发布未做 Windows 代码签名。用户已确认 JPG 人工核验完成，具体系统与逐项明细未提供；自动化与下载验收分别见 [验收记录](docs/acceptance.md)。
 
 ## 当前功能
 

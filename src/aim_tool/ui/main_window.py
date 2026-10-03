@@ -1,4 +1,4 @@
-"""JPG batch workspace: ordered workflows, stable rows and live watermark preview."""
+"""Photo batch workspace: ordered workflows, stable rows and live watermark preview."""
 
 from __future__ import annotations
 
@@ -84,6 +84,7 @@ class MainWindow(QMainWindow):
         settings_store: WatermarkSettingsStore | None = None,
         location_store: ConfigStore | None = None,
         workflow_store: ConfigStore | None = None,
+        allow_nef_after_viewer_check: bool = False,
     ) -> None:
         super().__init__()
         self.setWindowTitle("Auto Image Mark Tool")
@@ -91,6 +92,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1100, 720)
         self.setStyleSheet(STYLE)
         self.setAcceptDrops(True)
+        self.allow_nef_after_viewer_check = allow_nef_after_viewer_check
         self.settings_store = settings_store or WatermarkSettingsStore()
         initial_error = ""
         try:
@@ -293,7 +295,7 @@ class MainWindow(QMainWindow):
         brand.setObjectName("brand")
         heading = QLabel("照片批处理")
         heading.setObjectName("title")
-        subtitle = QLabel("JPG / JPEG  ·  坐标与版权水印  ·  本地处理")
+        subtitle = QLabel("JPG 水印 / 坐标 · NEF 仅坐标 · 本地处理")
         subtitle.setObjectName("muted")
         heading_group = QVBoxLayout()
         heading_group.addWidget(heading)
@@ -368,7 +370,7 @@ class MainWindow(QMainWindow):
 
     def _pick_files(self) -> None:
         names, _ = QFileDialog.getOpenFileNames(
-            self, "添加照片", "", "JPEG (*.jpg *.jpeg *.JPG *.JPEG)"
+            self, "添加照片", "", "照片 (*.jpg *.jpeg *.JPG *.JPEG *.nef *.NEF)"
         )
         self.add_photos(tuple(Path(name) for name in names))
 
@@ -377,7 +379,11 @@ class MainWindow(QMainWindow):
         if name:
             root = Path(name)
             self.add_photos(
-                tuple(path for path in root.rglob("*") if path.suffix.lower() in {".jpg", ".jpeg"}),
+                tuple(
+                    path
+                    for path in root.rglob("*")
+                    if path.suffix.lower() in {".jpg", ".jpeg", ".nef"}
+                ),
                 import_root=root,
             )
 
@@ -395,7 +401,7 @@ class MainWindow(QMainWindow):
                 files.extend(
                     candidate
                     for candidate in path.rglob("*")
-                    if candidate.suffix.lower() in {".jpg", ".jpeg"}
+                    if candidate.suffix.lower() in {".jpg", ".jpeg", ".nef"}
                 )
             else:
                 files.append(path)
@@ -404,7 +410,7 @@ class MainWindow(QMainWindow):
         self._start_metadata()
         if self.table.currentIndex().isValid() is False and self.proxy.rowCount():
             self.table.selectRow(0)
-        self._message(f"已添加 {len(added)} 张 JPG；非 JPG 文件未导入。")
+        self._message(f"已添加 {len(added)} 张照片；NEF 仅可选择坐标流程。")
         self._update_count()
 
     def _start_metadata(self) -> None:
@@ -581,6 +587,9 @@ class MainWindow(QMainWindow):
             if not photos:
                 self.preview.invalidate("选择一张 JPG 查看预览。")
                 return
+            if photos[0].source.suffix.lower() == ".nef":
+                self.preview.invalidate("NEF 仅写入坐标，保留原格式；本版不显影或生成 JPG 预览。")
+                return
             self.preview.request(
                 photos[0], self.settings if self.workflow.watermark.isChecked() else None
             )
@@ -613,6 +622,10 @@ class MainWindow(QMainWindow):
             photos = self._photos()
             if not photos:
                 raise ValueError("请勾选至少一张照片")
+            if self.workflow.watermark.isChecked() and any(
+                photo.source.suffix.lower() == ".nef" for photo in photos
+            ):
+                raise ValueError("NEF 仅支持坐标写入；请选择坐标流程或取消勾选 NEF。")
             if not self.output_edit.text().strip():
                 raise ValueError("请选择输出目录")
             job = BatchJob(
@@ -627,7 +640,11 @@ class MainWindow(QMainWindow):
         self.progress.setRange(0, 0)
         self._message(f"正在预检 {len(photos)} 张照片…")
         worker = PreflightWorker(
-            job, self.settings, self, clear_auxiliary_gps=self.clear_auxiliary.isChecked()
+            job,
+            self.settings,
+            self,
+            clear_auxiliary_gps=self.clear_auxiliary.isChecked(),
+            allow_nef_after_viewer_check=self.allow_nef_after_viewer_check,
         )
         self._preflight_worker = worker
         worker.item_error.connect(self.model.preflight_error)

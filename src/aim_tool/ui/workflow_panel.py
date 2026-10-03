@@ -1,4 +1,4 @@
-"""Ordered built-in JPG workflow cards and local preset persistence."""
+"""Ordered built-in photo workflow cards and local preset persistence."""
 
 from __future__ import annotations
 
@@ -71,7 +71,7 @@ class WorkflowPanel(QWidget):
         save.clicked.connect(self._save_prompt)
         layout.addWidget(save)
         layout.addStretch()
-        note = QLabel("本版支持 JPG / JPEG\nNEF 将在后续版本提供")
+        note = QLabel("JPG / JPEG：坐标与水印\nNEF：仅坐标，保留原格式")
         note.setWordWrap(True)
         note.setObjectName("muted")
         layout.addWidget(note)
@@ -107,7 +107,7 @@ class WorkflowPanel(QWidget):
                     or not spec.steps[-1].enabled
                     or not any(step.enabled for step in spec.steps[:2])
                 ):
-                    raise ValueError("此预设不是合法的 JPG 工作流")
+                    raise ValueError("此预设不是合法的工作流")
                 self._set_steps(spec.steps[0].enabled, spec.steps[1].enabled)
                 self.loaded.emit(spec.steps[1].params)
             except (KeyError, ValueError) as error:

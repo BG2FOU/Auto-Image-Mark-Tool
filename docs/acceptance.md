@@ -87,6 +87,16 @@ Get-Content -LiteralPath '.\jpg-self-test.json' -Encoding UTF8
 
 退出码应为 0，报告应含 `version: 0.3.0rc1`、`frozen: true`、`ok: true` 及 12 类 checks。此报告仅用于环境诊断，该命令不是本次用户人工核验的证据。
 
+## NEF 坐标后续阶段（2026-10-03）
+
+用户已明确授权 NEF 仅写坐标，输出保持 NEF；显影和水印仍暂缓。JPG 的人工确认不转用于 NEF。
+
+- 已用本地 Nikon Z 5、14-bit、NEFCompression=3（lossless）、RAW 6040×4032 样片在副本试写。原片哈希、rawpy 解码的 RAW mosaic/尺寸与预览像素、关键相机信息、MakerNotes 和 ExifTool 验证结果均一致，GPS 读回正确。
+- 本地诊断副本在 `demo-output/nef-gps-review/DSC_0168.NEF`；原片、输出和本地检查 JSON 均不提交、不打包。该副本用于独立软件抽验，不是公开样片。
+- 新增 `services/nef_gps.py`，专门完成编码范围检查及压缩 RAW/缩略图/嵌入 JPEG 数据、ExifIFD/MakerNotes 的写后比对，不包含 RAW 显影。这是第 6 节文件清单的增补，避免在仍暂缓的 raw 显影模块中混入坐标功能。
+- 图形页面已接入 NEF 导入、坐标批处理、无 JPG 预览提示及水印前置阻止；默认写入门禁仍关闭，沿用 `allow_nef_after_viewer_check=False`，待本机型独立软件验收后再开放。
+- 尚需独立 Nikon 查看器或用户常用软件抽验；随后才可启用本机型、新版本构建及发布。其他机型、12-bit 或其他压缩编码明确拒绝。
+
 ## 历史验证记录
 
 以下按日期记录当时的验证快照；上面的阶段表是当前状态。

@@ -38,9 +38,15 @@ def _sample(path: Path, pytestconfig: pytest.Config) -> Path:
     pytest.skip(f"Private sample is missing: {path}")
 
 
-def _registry(tool: ExifTool, clear_auxiliary: bool = False) -> StepRegistry:
+def _registry(
+    tool: ExifTool, clear_auxiliary: bool = False, *, allow_nef: bool = False
+) -> StepRegistry:
     registry = StepRegistry()
-    registry.register(LocationStep(tool, clear_auxiliary_gps=clear_auxiliary))
+    registry.register(
+        LocationStep(
+            tool, clear_auxiliary_gps=clear_auxiliary, allow_nef_after_viewer_check=allow_nef
+        )
+    )
     registry.register(ExportStep())
     return registry
 
@@ -161,3 +167,107 @@ def test_nikon_nef_diagnostic_copy_preserves_raw_and_preview_pixels(
     assert before_validation == after_validation
     assert sha256(source.read_bytes()).hexdigest() == source_hash
     # Independent Nikon viewer approval is still required before batch NEF output is enabled.
+
+
+@pytest.mark.raw
+def test_nikon_nef_transactional_batch_preserves_format_and_payloads(
+    tmp_path: Path, tool: ExifTool, pytestconfig: pytest.Config
+) -> None:
+    from aim_tool.services.nef_gps import fingerprint_nef
+
+    source = _sample(ROOT / "data/DSC_0168.NEF", pytestconfig)
+    source_hash = sha256(source.read_bytes()).digest()
+    before = fingerprint_nef(tool, source)
+    item = PhotoItem(source, source.parent, coordinates=(-24.123456, -118.654321))
+    output = tmp_path / "output"
+    (result,) = run_plan(
+        build_plan(
+            BatchJob((item,), preset("location_only"), output),
+            _registry(tool, allow_nef=True),
+        )
+    )
+    assert result.output == output / source.name, result.error
+    assert fingerprint_nef(tool, result.output) == before
+    gps = tool.read_gps(result.output)
+    assert gps is not None
+    assert abs(gps.latitude + 24.123456) < 1e-6
+    assert abs(gps.longitude + 118.654321) < 1e-6
+    assert sha256(source.read_bytes()).digest() == source_hash
+    assert not list(output.glob("*.jpg"))
+    assert not list(output.glob(".aim-*"))
+
+
+@pytest.mark.raw
+def test_nef_changed_payload_is_not_committed(
+    tmp_path: Path, tool: ExifTool, pytestconfig: pytest.Config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = _sample(ROOT / "data/DSC_0168.NEF", pytestconfig)
+    original = sha256(source.read_bytes()).digest()
+    write_gps = tool.write_gps
+
+    def corrupt_copy(path: Path, latitude: float, longitude: float) -> None:
+        write_gps(path, latitude, longitude)
+        offset = tool.metadata(path, "-SubIFD1:StripOffsets")["SubIFD1:StripOffsets"]
+        with path.open("r+b") as copy:
+            copy.seek(offset)
+            byte = copy.read(1)
+            copy.seek(offset)
+            copy.write(bytes([byte[0] ^ 0xFF]))
+
+    monkeypatch.setattr(tool, "write_gps", corrupt_copy)
+    item = PhotoItem(source, source.parent, coordinates=(0, 0))
+    output = tmp_path / "output"
+    (result,) = run_plan(
+        build_plan(
+            BatchJob((item,), preset("location_only"), output),
+            _registry(tool, allow_nef=True),
+        )
+    )
+    assert result.output is None
+    assert "NEF RAW, previews or camera metadata changed" in (result.error or "")
+    assert sha256(source.read_bytes()).digest() == original
+    assert not list(output.iterdir())
+
+
+@pytest.mark.raw
+def test_gui_mixed_jpg_nef_gps_batch_without_conversion_or_watermark_assets(
+    qtbot, tmp_path: Path, tool: ExifTool, pytestconfig: pytest.Config
+) -> None:
+    from aim_tool.domain import ItemStatus
+    from aim_tool.services.nef_gps import fingerprint_nef
+    from aim_tool.services.storage import ConfigStore, WatermarkSettingsStore
+    from aim_tool.ui.main_window import MainWindow
+
+    source = _sample(ROOT / "data/DSC_0168.NEF", pytestconfig)
+    original = sha256(source.read_bytes()).digest()
+    before = fingerprint_nef(tool, source)
+    jpeg = tmp_path / "jpg/a.jpg"
+    jpeg.parent.mkdir()
+    Image.new("RGB", (64, 48), (20, 80, 120)).save(jpeg)
+    window = MainWindow(
+        settings_store=WatermarkSettingsStore(tmp_path / "settings.json"),
+        location_store=ConfigStore(tmp_path / "locations.json"),
+        workflow_store=ConfigStore(tmp_path / "workflows.json"),
+        allow_nef_after_viewer_check=True,
+    )
+    qtbot.addWidget(window)
+    window.show()
+    try:
+        window.workflow.presets.setCurrentIndex(1)
+        window.add_photos((source, jpeg))
+        window.apply_coordinates(0, 0)
+        output = tmp_path / "output"
+        window.output_edit.setText(str(output))
+        window.start()
+        qtbot.waitUntil(lambda: not window._busy, timeout=30000)
+        assert len(window.results) == 2, window.log.toPlainText()
+        assert all(result.status == ItemStatus.SUCCESS for result in window.results)
+        assert {path.name for path in output.iterdir()} == {source.name, jpeg.name}
+        assert fingerprint_nef(tool, output / source.name) == before
+        assert sha256(source.read_bytes()).digest() == original
+        with Image.open(jpeg) as first, Image.open(output / jpeg.name) as second:
+            assert first.tobytes() == second.tobytes()
+    finally:
+        window.close()
+        qtbot.waitUntil(lambda: not window.has_active_workers, timeout=20000)
+        qtbot.waitUntil(lambda: not window.isVisible(), timeout=2000)

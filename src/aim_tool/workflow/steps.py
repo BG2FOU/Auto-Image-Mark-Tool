@@ -14,6 +14,7 @@ from uuid import UUID
 from aim_tool.domain import Artifact, ImageKind, PhotoItem, StepSpec
 from aim_tool.domain.dates import resolve_capture_date
 from aim_tool.services.exiftool import ExifTool, validate_coordinates
+from aim_tool.services.nef_gps import fingerprint_nef, require_tested_nef
 from aim_tool.services.output import commit_no_overwrite
 from aim_tool.workflow.contracts import ParameterType, StepContext
 
@@ -55,8 +56,10 @@ class LocationStep:
         if item.coordinates is None:
             raise ValueError(f"Missing WGS84 coordinates: {item.source.name}")
         validate_coordinates(*item.coordinates)
-        if item.source.suffix.lower() == ".nef" and not self.allow_nef_after_viewer_check:
-            raise ValueError("NEF GPS output needs independent Nikon viewer approval")
+        if item.source.suffix.lower() == ".nef":
+            if not self.allow_nef_after_viewer_check:
+                raise ValueError("NEF GPS output needs independent Nikon viewer approval")
+            require_tested_nef(self.tool, item.source)
         if self.tool.has_auxiliary_gps(item.source) and not self.clear_auxiliary_gps:
             raise ValueError("Existing auxiliary GPS tags require explicit clearance")
 
@@ -67,12 +70,17 @@ class LocationStep:
             raise ValueError(f"Missing WGS84 coordinates: {artifact.source.name}")
         latitude, longitude = context.coordinates
         before = _sha256(artifact.source)
+        nef_before = (
+            fingerprint_nef(self.tool, artifact.source) if artifact.kind == ImageKind.NEF else None
+        )
         staged = context.scratch / artifact.source.name
         with artifact.source.open("rb") as original, staged.open("xb") as copy:
             shutil.copyfileobj(original, copy, length=1024 * 1024)
         if _sha256(staged) != before:
             raise OSError("Source copy changed before GPS update")
         self.tool.write_gps(staged, latitude, longitude)
+        if nef_before is not None and fingerprint_nef(self.tool, staged) != nef_before:
+            raise ValueError("NEF RAW, previews or camera metadata changed during GPS update")
         if _sha256(artifact.source) != before:
             raise OSError("Source changed during GPS update")
         updated = dict(artifact.metadata)
@@ -222,6 +230,8 @@ class WatermarkStep:
         return self._config(photo, spec)
 
     def validate(self, item: PhotoItem, spec: StepSpec) -> None:
+        if item.source.suffix.lower() == ".nef":
+            raise ValueError("NEF watermark processing is deferred; select coordinates only")
         from aim_tool.services.images import prepare_jpeg
         from aim_tool.services.watermark import render_watermark_layer
 

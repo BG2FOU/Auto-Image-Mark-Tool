@@ -82,9 +82,11 @@ class PreflightWorker(QThread):
         parent: QWidget | None = None,
         *,
         clear_auxiliary_gps: bool = False,
+        allow_nef_after_viewer_check: bool = False,
     ) -> None:
         super().__init__(parent)
         self.clear_auxiliary_gps = clear_auxiliary_gps
+        self.allow_nef_after_viewer_check = allow_nef_after_viewer_check
         self.job = job
         self.settings = settings
         self.cancelled = Event()
@@ -93,7 +95,13 @@ class PreflightWorker(QThread):
         try:
             tool = ExifTool(timeout=30)
             registry = StepRegistry()
-            registry.register(LocationStep(tool, clear_auxiliary_gps=self.clear_auxiliary_gps))
+            registry.register(
+                LocationStep(
+                    tool,
+                    clear_auxiliary_gps=self.clear_auxiliary_gps,
+                    allow_nef_after_viewer_check=self.allow_nef_after_viewer_check,
+                )
+            )
             registry.register(WatermarkStep(tool, self.settings.resources))
             registry.register(ExportStep())
             plan = build_plan(self.job, registry, cancelled=self.cancelled)

@@ -1,4 +1,4 @@
-"""Editable JPG rows with stable IDs under sorting and filtering."""
+"""Editable photo rows with stable IDs under sorting and filtering."""
 
 from __future__ import annotations
 
@@ -220,7 +220,7 @@ class PhotoTableModel(QAbstractTableModel):
             if (
                 source in existing
                 or not source.is_file()
-                or source.suffix.lower() not in {".jpg", ".jpeg"}
+                or source.suffix.lower() not in {".jpg", ".jpeg", ".nef"}
             ):
                 continue
             root = import_root.resolve() if import_root is not None else source.parent
