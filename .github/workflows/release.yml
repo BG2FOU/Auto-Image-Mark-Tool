@@ -93,6 +93,35 @@ jobs:
           shutil.copytree('dist/AutoImageMarkTool', target)
           PY
           .venv/Scripts/python.exe scripts/smoke_exe.py --exe 'build/中文 离线程序/AutoImageMarkTool/AutoImageMarkTool.exe'
+      - name: Diagnose Chinese bundled Perl path on failure
+        if: failure()
+        run: |
+          .venv/Scripts/python.exe - <<'PY'
+          import ctypes
+          import hashlib
+          import os
+          import subprocess
+          from pathlib import Path
+          original = Path('tools/exiftool/exiftool_files').resolve()
+          bundle = Path('build/中文 离线程序/AutoImageMarkTool/_internal/tools/exiftool/exiftool_files').resolve()
+          if not bundle.is_dir():
+              raise SystemExit(0)
+          for name in ('perl.exe', 'perl532.dll', 'exiftool.pl'):
+              print(name, [(str(root), (root/name).is_file(), hashlib.sha256((root/name).read_bytes()).hexdigest()) for root in (original, bundle)])
+          environment = os.environ.copy()
+          environment['PATH'] = str(Path(os.environ['SystemRoot'])/'System32')
+          for root in (original, bundle):
+              result = subprocess.run([str(root/'perl.exe'), '-Ilib', 'exiftool.pl', '-ver'], cwd=root, env=environment, capture_output=True, text=True, encoding='utf-8', errors='replace')
+              print('direct', str(root), result.returncode, result.stdout, result.stderr)
+          kernel = ctypes.WinDLL('kernel32')
+          kernel.GetShortPathNameW.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint]
+          short = ctypes.create_unicode_buffer(32768)
+          length = kernel.GetShortPathNameW(str(bundle), short, len(short))
+          print('short path', length, short.value)
+          if length:
+              result = subprocess.run([str(bundle/'perl.exe'), '-Ilib', 'exiftool.pl', '-ver'], cwd=short.value, env=environment, capture_output=True, text=True, encoding='utf-8', errors='replace')
+              print('short cwd', result.returncode, result.stdout, result.stderr)
+          PY
       - name: Build and smoke single executable
         shell: pwsh
         run: .\scripts\build.ps1 -Mode onefile

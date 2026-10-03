@@ -215,3 +215,6 @@ Linux 本地完整 onedir 与 DEB（约 72 MB）构建通过；目录程序和 D
 
 
 运行 37097210324：Windows 源码 73 unit、23 GUI、13 metadata/pipeline 全部通过（1 视觉用例排除），包含真实中文目录 Perl GPS；ASCII 冻结自测通过，中文冻结目录的 Perl 报 exiftool.pl Invalid argument，未发布。按 PyInstaller 6.22.3 官方子进程文档，在 Windows 冻结进程创建 Perl 前临时清除 DLL 搜索目录，并从子进程 PATH 去掉冻结库目录；创建后立即恢复父进程 DLL 路径，锁仅覆盖启动，不阻塞整个处理。超时杀死并回收子进程，保持原超时接口。原生中文运行时回归同时模拟冻结 DLL 搜索路径并断言恢复，最终仍须真实冻结自测通过；不预先声称这是唯一根因。
+
+
+运行 37097707362：原生 Windows 源码回归和 DLL 路径恢复断言均通过；ASCII 目录冻结自测全部通过，中文冻结目录仍报 perl exiftool.pl Invalid argument，DLL 隔离没有消除此问题。Linux 完整包通过。S9 中文目录门禁未满足，S10 标签和新 Release 未创建。新增失败诊断仅比对固定包与冻结包内 Perl/script 哈希，并从外部 Python 在系统 PATH 下执行相同 Perl、读取 DOS 短路径来区分内容与启动路径问题；不删除门禁，不改工具版本，不猜测最终原因。
