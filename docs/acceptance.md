@@ -230,3 +230,34 @@ Linux 本地完整 onedir 与 DEB（约 72 MB）构建通过；目录程序和 D
 
 
 S10 下载验收增加只读 Windows job：公开 Release 发布后，重新下载单文件 EXE、SHA256SUMS 和 BUILD_INFO，核对文件哈希、标签及源 SHA，再从中文含空格下载目录执行离线完整冻结自测。该 job 不安装项目依赖或 ExifTool，冒烟仍清除子进程 PYTHONPATH 并限制 PATH；结果独立记录，不将构建前自测称为下载验收。Linux 的公开 DEB 下载、解包与本地离线运行在发布后另行记录。
+
+
+### S9–S10：完整 JPG 预发布与公开下载验收（2026-10-03）
+
+已发布 [v0.3.0-rc.1](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.3.0-rc.1)，公开时间 2026-10-03 17:41:02（UTC+8），为预发布而非草稿。发布源 SHA 为 `946ea9ad9c5c0b9218ff0d4b430bf5bcf2054cf2`，标签保持指向该提交；之后的文档提交不改变已有发布包。
+
+- 发布源自身 [Windows CI 37113235645](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/37113235645) 成功。
+- 修复预构建 [37112858696](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/37112858696) 成功，验证无 DOS 别名的中文目录运行时、复制字节一致和清理。
+- 正式标签 [37113456901](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/37113456901) 全链成功：版本/提交校验、Windows/Linux 测试与构建、附件组装/审计、草稿下载核验、公开发布、Windows 公开 EXE 下载后运行。
+- Windows 原生：73 unit、23 GUI、14 metadata/pipeline passed，1 个依赖私人素材的视觉用例排除；Ruff/格式/mypy 通过。目录版和单文件版均通过普通路径、中文含空格路径的完整冻结自测。Windows 2022 runner 使用系统 PATH 隔离，不能将此记录写成独立 Windows 10 桌面人工验收。
+- Linux 原生：73 unit、23 GUI、12 metadata/pipeline passed；2 个 Windows 专项按平台 skip，1 个视觉用例排除。Ubuntu 24.04 / amd64 的目录程序、DEB 和解包程序完整冻结自测通过。
+- Windows 公开下载：只读 job 下载发布 EXE、清单和 BUILD_INFO，文件哈希、版本标签、源 SHA 匹配；下载程序在中文含空格路径、仓库外 cwd、系统 PATH 下完成 12 类检查，未安装项目依赖或外部 ExifTool。
+- Linux 公开下载：本地 Ubuntu 24.04.5 / glibc 2.39 下载全部 7 个附件，`check_release.py --tag v0.3.0-rc.1 --dist build/published-v0.3.0-rc.1` 成功；实际下载的 DEB 解包至忽略目录后，经 `smoke_exe.py` 完成同样 12 类检查。附件大小 EXE 76,148,569 字节、目录 ZIP 76,563,618 字节、DEB 82,037,518 字节。
+
+12 类冻结检查为 GUI、设置、地点、预览、GPS+水印、方向、ICC、拍摄日期、源文件不变、清理、报告、XLSX。商用字体视觉认可沿用 S8 的本地人工记录，公共冻结测试只生成自有合成资源。原片及签名/两款字体指纹再次核对不变；公开资源审计通过。许可证仍为 CC BY-SA 4.0，完整第三方许可随包及 LICENSES.zip 提供。NEF 未纳入本期发布。
+
+本轮故障修复与交付文件：
+
+| 文件 | 内容 |
+| --- | --- |
+| `src/aim_tool/services/exiftool.py` | 无 DOS 别名时临时复制固定 Perl 支持运行时，保留 API、版本、DLL 隔离与清理 |
+| `tests/integration/test_metadata.py` | 构建卷中文路径的实际 GPS/像素、完整运行时哈希和临时清理回归 |
+| `.github/workflows/release.yml` | UTF-8 诊断、两种包的中文路径门禁、公开 EXE 下载后原生运行 |
+| `README.md` | 完整 JPG 版公开下载入口 |
+| `docs/user-guide.md` | 发行包启动方式和实际验证边界 |
+| `docs/build-release.md` | 临时运行时兼容规则、固定工具链及标签验证方式 |
+| `docs/releases/v0.3.0-rc.1.md` | 功能范围、下载方式、兼容限制 |
+| `docs/plan.md` | 本期预发布状态及保留的人工验收项 |
+| `docs/acceptance.md` | 根因诊断、各阶段检查、正式发布与下载证据 |
+
+实现调整仅为处理固定 Perl 的 ANSI 路径限制而增加运行时临时副本；无工具升级、公共 API 改动、私人素材公开或格式范围扩大。保留的限制：EXE 未签名；独立 Windows 10 标准用户桌面人工验收尚未进行；没有 DOS 别名且 TEMP/LOCALAPPDATA 都无法由系统代码页表示时，需要设置可写的 ASCII TEMP；Linux 基线为 Ubuntu 24.04 / glibc 2.39，其他发行版尚未逐一验收。

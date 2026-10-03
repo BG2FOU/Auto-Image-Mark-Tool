@@ -2,7 +2,19 @@
 
 本地 JPG/JPEG 坐标与版权水印批处理工具。使用 PySide6 图形页面，先预检、再写入输出副本，不覆盖原片或已有成品。许可证保留 **CC BY-SA 4.0**，`©BG2FOU`。
 
-## 当前源码功能
+## 下载
+
+完整 JPG 图形预发布 [v0.3.0-rc.1](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.3.0-rc.1)：
+
+- [Windows x64 单文件 EXE](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/download/v0.3.0-rc.1/AutoImageMarkTool-v0.3.0-rc.1-windows-x64.exe)
+- [Windows x64 目录 ZIP](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/download/v0.3.0-rc.1/AutoImageMarkTool-v0.3.0-rc.1-windows-x64.zip)
+- [Ubuntu 24.04 / Linux amd64 DEB](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/download/v0.3.0-rc.1/auto-image-mark-tool_0.3.0-rc.1_amd64.deb)
+
+Windows 双击 EXE，或解压 ZIP 后运行其中的 EXE；Linux 用 `sudo apt install ./auto-image-mark-tool_0.3.0-rc.1_amd64.deb` 安装，再启动 `auto-image-mark-tool`。使用 Release 附带的 SHA256SUMS.txt 校验下载；完整许可与构建来源随附件提供。无需另装 Python 或 ExifTool，水印字体和签名由用户在本地选择。
+
+此预发布未做 Windows 代码签名。独立 Windows 10 桌面人工验收仍待完成，自动化与下载验收分别见 [验收记录](docs/acceptance.md)。
+
+## 当前功能
 
 | 流程 | 输入 | 输出 |
 | --- | --- | --- |
@@ -20,7 +32,7 @@
 
 ## 运行与测试
 
-使用 Python **3.12.3 x64** 和已锁定依赖；按 [构建说明](docs/gps-gui-preview.md) 准备 ExifTool **13.59**。
+使用 Python **3.12.3 x64** 和已锁定依赖；按 [完整 JPG 构建说明](docs/build-release.md) 准备 ExifTool **13.59**。
 
 ```bash
 python -m pip install --require-hashes -r requirements-dev.lock
@@ -28,7 +40,7 @@ python -m pip install --no-deps --no-build-isolation -e .
 python -m aim_tool
 ```
 
-`python -m aim_tool --gps-only` 保留独立坐标预览页面。主页面操作见 [用户手册](docs/user-guide.md)。公开 GPS 预发布 `v0.2.0-rc.2` 不含新水印页面；完整 JPG 构建与发布进度见 [验收记录](docs/acceptance.md)。
+`python -m aim_tool --gps-only` 保留独立坐标预览页面。主页面操作见 [用户手册](docs/user-guide.md)。旧 GPS 预发布 `v0.2.0-rc.2` 保留；完整 JPG 版请使用上面的 `v0.3.0-rc.1`。
 
 ```bash
 QT_QPA_PLATFORM=offscreen python -m pytest tests/unit tests/integration tests/gui -m 'not raw' -q

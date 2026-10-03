@@ -2,7 +2,7 @@
 
 ## 1. 选择流程与照片
 
-启动 `python -m aim_tool`，左侧选择“坐标”“水印”或“坐标＋水印”。步骤顺序固定为坐标在前、水印在后；至少启用一个处理步骤。可保存/载入本地流程预设，当前不导入 NEF。
+从 [v0.3.0-rc.1 Release](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.3.0-rc.1) 下载 Windows EXE/ZIP 或 Linux DEB，启动 `AutoImageMarkTool.exe` / `auto-image-mark-tool`；源码运行使用 `python -m aim_tool`。左侧选择“坐标”“水印”或“坐标＋水印”。步骤顺序固定为坐标在前、水印在后；至少启用一个处理步骤。可保存/载入本地流程预设，当前不导入 NEF。
 
 点击添加照片/文件夹，或将 JPG/JPEG 拖入窗口。复选框控制处理范围；当前选中行控制右侧预览。可以搜索和排序；批量应用按照片稳定 ID 工作，排序不会改变对应关系。可移除选中行，不会删除原文件。
 
@@ -52,4 +52,6 @@ Windows 便携版 `locations.json` 在 EXE 同目录；目录必须可写。其�
 
 ## 当前验证边界
 
-Linux 本地与合成素材自动化检查持续记录于 `docs/acceptance.md`。原生 Windows CI、冻结构建和人工查看器检查各自记录，不将其中一种替代其他验收。当前完整 JPG 发行包尚在后续构建阶段；NEF 功能延后。
+完整 JPG 版 `v0.3.0-rc.1` 已发布；Windows 原生 CI、两种冻结包、中文含空格安装路径和公开 EXE 下载后自测均已通过。Linux DEB 构建与解包自测通过；各平台公开下载验收结果记录于 [验收记录](acceptance.md)。这些自动化检查不替代独立 Windows 10 桌面人工操作，EXE 尚未签名；NEF 功能延后。
+
+中文安装目录缺少 DOS 短路径时，固定包内 ExifTool 运行时会临时复制到用户目录，结束后清理。若系统 TEMP 和 LOCALAPPDATA 同时不能由系统代码页或短路径表示，程序会明确报错，此时需设置可写的 ASCII TEMP。照片、字体、签名和作业配置不会因此被复制进公开包。

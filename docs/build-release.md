@@ -36,3 +36,10 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/build_deb.py
 产物包含 EXE、可替换依赖库的目录 ZIP、DEB、完整 `LICENSES.zip`、第三方声明、`BUILD_INFO.json` 和 `SHA256SUMS.txt`。BUILD_INFO 记录源 SHA、工具版本及无签名状态。EXE 未做代码签名；可使用哈希核验下载内容。禁止上传 `data/`、私人字体/签名、demo 输出。
 
 恢复入口为 workflow_dispatch 的既有 tag 和 publish=true。同标签串行；仅允许更新未发布草稿，已发布内容不能静默替换。失败修复需提交并验证，新代码必须使用新版本/标签；不要移动已有标签。回滚使用上一份已发布包，不覆盖新版附件。依赖升级需重新生成锁文件、核对许可源哈希并走全部测试。
+
+
+## 已发布版本与下载验证
+
+[v0.3.0-rc.1](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.3.0-rc.1) 对应源 SHA `946ea9ad9c5c0b9218ff0d4b430bf5bcf2054cf2`，正式运行 `37113456901` 成功，包含公开 Windows EXE 下载后的原生离线自测。全部公开附件哈希及实际下载的 Linux DEB 解包自测已验证，见 [验收记录](acceptance.md)。
+
+验证既有 Release 的 `check_release.py --tag ... --dist ...` 时，必须在该标签对应的 checkout 运行；它严格比较当前 HEAD、标签和 BUILD_INFO 的源 SHA。主分支随后更新文档不改变已有标签或发布附件。发布后只读 Windows job 不安装项目依赖，重新下载并校验 EXE，在中文下载目录实际运行；其失败会独立显示在正式流程中，不静默覆盖公开发行包。
