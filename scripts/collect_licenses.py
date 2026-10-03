@@ -6,6 +6,7 @@ import hashlib
 import json
 import posixpath
 import shutil
+import sys
 import tarfile
 import urllib.request
 from importlib.metadata import distribution
@@ -95,6 +96,17 @@ def collect() -> Path:
         if not found:
             raise ValueError(f"Installed dependency has no license text: {package}")
         inventory.append({"name": package, "version": installed.version})
+    runtime = ROOT / (
+        "tools/exiftool/exiftool_files" if sys.platform == "win32" else "tools/exiftool-13.59"
+    )
+    tool_notices = DESTINATION / "ExifTool"
+    tool_notices.mkdir()
+    shutil.copy2(runtime / "LICENSE", tool_notices / "LICENSE")
+    if sys.platform == "win32":
+        shutil.copy2(
+            runtime / "Licenses_Strawberry_Perl.zip", tool_notices / "Licenses_Strawberry_Perl.zip"
+        )
+        shutil.copy2(runtime / "readme_windows.txt", tool_notices / "readme_windows.txt")
     shutil.copy2(manifest_path, DESTINATION / "SOURCE_ARCHIVES.json")
     (DESTINATION / "PYTHON_PACKAGES.json").write_text(
         json.dumps(inventory, indent=2) + "\n", encoding="utf-8"

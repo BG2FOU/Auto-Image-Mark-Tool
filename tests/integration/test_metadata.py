@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import shutil
+import sys
 from hashlib import sha256
 from pathlib import Path
 
@@ -94,3 +96,24 @@ def test_partial_gps_is_rejected_before_transfer(tmp_path: Path, tool: ExifTool)
     with pytest.raises(ExifToolError, match="incomplete"):
         preserve_watermark_metadata(tool, source, target)
     assert target.read_bytes() == before
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows bundled Perl runtime")
+def test_windows_runtime_in_unicode_directory(
+    tmp_path: Path, tool: ExifTool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = tmp_path / "中文 程序" / "exiftool"
+    shutil.copytree(tool.executable.parent, runtime)
+    relocated = ExifTool(runtime / "exiftool.exe")
+    source = tmp_path / "中文 照片.jpg"
+    Image.new("RGB", (32, 24), (20, 40, 60)).save(source)
+    with Image.open(source) as original:
+        before = original.tobytes()
+    monkeypatch.chdir(tmp_path)
+    relocated.write_gps(Path(source.name), -24.2, 118.4)
+    gps = relocated.read_gps(Path(source.name))
+    assert gps is not None
+    assert abs(gps.latitude + 24.2) < 1e-6
+    assert abs(gps.longitude - 118.4) < 1e-6
+    with Image.open(source) as output:
+        assert output.tobytes() == before

@@ -209,3 +209,6 @@ Linux 本地完整 onedir 与 DEB（约 72 MB）构建通过；目录程序和 D
 
 
 同一目录别名审查发现冻结归属检查也将已 resolve 的 ExifTool 路径与未 resolve 的 _MEIPASS 比较；一并解析 bundle 后再做包含关系检查，避免 onefile 解包路径别名造成误判。仍要求 ExifTool 确实位于真实冻结目录，不降低归属门禁。
+
+
+运行 37096722648：Windows ASCII 目录版完整离线自测全部通过，中文含空格安装目录失败，日志显示官方 tiny launcher 把中文目录转成 ?? 后找不到 Perl DLL。固定官方包已包含 perl.exe、exiftool.pl 和完整 lib；适配器在该运行时存在时直接用包内 Perl、相对脚本/库路径及 Unicode cwd，不依赖外部 Perl，不改版本或公开 ExifTool API。照片参数转绝对路径保持原相对路径语义；增加原生 Windows 中文运行时目录 GPS 写回测试。许可收集同时把原包 ExifTool 许可、Strawberry Perl 许可 ZIP 和 CC0 launcher readme 纳入附件，原分发包仍完整捆绑。尚待新原生测试确认。

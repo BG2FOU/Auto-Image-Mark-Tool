@@ -23,7 +23,7 @@ Linux（Ubuntu 24.04 / amd64 基线）：
 QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/build_deb.py
 ```
 
-两平台复用 `packaging/AutoImageMarkTool.spec`。构建脚本会运行 `--self-test-jpg --report`，从源码目录外启动实际冻结程序，清除外部 ExifTool/PYTHONPATH/Qt 插件路径，并把 PATH 限制为系统目录，使用临时自有合成字体/签名/JPG/XLSX，验证 GUI、地点保存、预览、GPS+水印、方向、ICC、拍摄日期、源哈希和清理。旧 `--self-test` GPS 接口保持不变。自测不联网，不读取用户照片。DEB 解包后再执行同一自测。
+两平台复用 `packaging/AutoImageMarkTool.spec`。Windows 适配器直接使用固定包内的 Perl 和相对 exiftool.pl/lib，避免原启动器的 ANSI 安装路径限制；公共接口及 13.59 版本校验保持有效。构建脚本会运行 `--self-test-jpg --report`，从源码目录外启动实际冻结程序，清除外部 ExifTool/PYTHONPATH/Qt 插件路径，并把 PATH 限制为系统目录，使用临时自有合成字体/签名/JPG/XLSX，验证 GUI、地点保存、预览、GPS+水印、方向、ICC、拍摄日期、源哈希和清理。旧 `--self-test` GPS 接口保持不变。自测不联网，不读取用户照片。DEB 解包后再执行同一自测。
 
 `dist/AutoImageMarkTool/` 为目录版；Windows `dist/AutoImageMarkTool.exe` 为单文件版；Linux DEB 版本使用 Debian 的 `0.3.0~rc1` 排序。字体、签名必须由用户在本地设置中选择，首次启动不会自带私人素材。冻结自测不代表商用字体的人工视觉验收，也不代替独立 Windows 10 桌面交互检查。
 

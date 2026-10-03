@@ -15,6 +15,7 @@ directory of the frozen application and in the release license archive.
 | et_xmlfile | 2.0.0 | MIT: https://pypi.org/project/et-xmlfile/2.0.0/ |
 | platformdirs | 4.12.2 | MIT: https://github.com/tox-dev/platformdirs/tree/4.12.2 |
 | PyInstaller bootloader | 6.22.3 | GPL with the bootloader exception; complete COPYING included. https://github.com/pyinstaller/pyinstaller/tree/v6.22.3 |
+| Windows bundled Perl runtime | Pinned ExifTool 13.59 distribution | Original `Licenses_Strawberry_Perl.zip` and `readme_windows.txt` are included; see https://strawberryperl.com/ . The original launcher is CC0, as documented in that readme. |
 | ExifTool | 13.59 | Same terms as Perl; original LICENSE and complete required runtime included. https://github.com/exiftool/exiftool/tree/13.59 |
 
 `licenses/SOURCE_ARCHIVES.json` records the exact upstream archive URLs and

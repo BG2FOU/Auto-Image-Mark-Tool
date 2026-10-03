@@ -70,9 +70,19 @@ class ExifTool:
             if self.executable.suffix.lower() != ".exe" and sys.platform != "win32"
             else [str(self.executable), *arguments]
         )
+        working_directory = None
+        if sys.platform == "win32" and self.executable.suffix.lower() == ".exe":
+            support = self.executable.parent / "exiftool_files"
+            interpreter = support / "perl.exe"
+            if interpreter.is_file() and (support / "exiftool.pl").is_file():
+                # The supplied launcher uses ANSI paths. Relative Perl/script paths
+                # keep Unicode installation directories out of its command parser.
+                command = [str(interpreter), "-Ilib", "exiftool.pl", *arguments]
+                working_directory = support
         try:
             completed = subprocess.run(
                 command,
+                cwd=working_directory,
                 capture_output=True,
                 input=argfile_input,
                 text=True,
@@ -93,7 +103,7 @@ class ExifTool:
         return completed.stdout
 
     def _run_for_path(self, path: Path, *arguments: str) -> str:
-        filename = str(path)
+        filename = str(path.resolve())
         if "\r" in filename or "\n" in filename:
             raise ExifToolError("File path cannot contain a newline")
         return self._run(
