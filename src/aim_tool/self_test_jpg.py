@@ -90,7 +90,7 @@ def run_self_test(report: Path) -> int:
             raise TypeError("A QApplication is required")
         application.setQuitOnLastWindowClosed(False)
         with TemporaryDirectory(prefix="aim-jpg-smoke-") as name:
-            root = Path(name)
+            root = Path(name).resolve()
             source = root / "中文 路径" / "甲.jpg"
             source.parent.mkdir()
             profile = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()

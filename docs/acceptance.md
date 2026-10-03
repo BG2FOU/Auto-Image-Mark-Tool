@@ -203,3 +203,6 @@ Linux 本地完整 onedir 与 DEB（约 72 MB）构建通过；目录程序和 D
 
 
 第二轮 37095957279：两个平台的分进程 107 项回归通过；Linux 完整 DEB、解包自测、资源审计成功。Windows onedir 实际冻结完成后，冒烟启动器把 Windows 环境复制为普通 dict 后按 SystemRoot 混合大小写取键，导致 KeyError（尚未启动成品）。修正为使用 Windows 原生大小写不敏感的 os.environ 读取系统目录，保持 PATH 隔离；等待同提交原生重测，不把“冻结完成”算作冒烟成功。
+
+
+第三轮 37096248316：Windows 冻结成品实际启动，自测因设置路径比较失败而停止。Linux 把 TMPDIR 指向目录软链接，可稳定复现相同 Settings cannot be reopened：存储契约把路径 resolve 后保存，而自测期望仍保留目录别名。将自测临时根目录先 resolve，不修改存储 API；新增启动回归从目录别名执行完整源码自测。Windows 临时目录的短路径别名可能触发这一差异，实际修复效果以新原生自测为准。
