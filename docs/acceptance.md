@@ -2,7 +2,7 @@
 
 本文件记录 `docs/plan.md` 的实际进度。未列为通过的项目不能据此声称已验收。
 
-当前交付为完整 JPG 图形预发布 [v0.3.0-rc.1](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.3.0-rc.1)。2026-10-03 复核：发布流程 `37113456901` 与文档提交 `c14dcad` 的 CI `37114119314` 均成功。下方阶段表为当前状态；后面的日期记录保留当时结论。
+当前交付为 [v0.4.0-rc.1](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.1)：JPG 三流程、已验证 Nikon Z 5 NEF 坐标副本写入、海拔和离线批量坐标转换。发布源 `2a0ef17` 的 CI `37130710745` 与正式发布/公开 Windows 下载流程 `37131275318` 均成功；全部公开附件及实际下载 DEB 已验证。按用户要求，本次测试和发布完成后暂停工作。历史日期记录保留当时结论。
 
 ## S0：决策与素材（已完成登记）
 
@@ -16,10 +16,10 @@
 | 默认分隔符 | 已实现并测试 | 半角 `|`（U+007C），默认两侧无空格；三类模板渲染测试通过。 |
 | 默认中文不透明度及可见底边距 | 已实现并测试 | 中文、拉丁文字与签名分别应用一次 50% 不透明度；基准画布组合可见右/下边距 25 px。 |
 | 字体、签名、字号、签名宽度和位置定制 | JPG 渲染与 GUI 设置已实现 | 本地预览可替换素材、调整字号、签名宽度、颜色、透明度、四角锚点与偏移；个人默认的保存/恢复、异步预览与拖动已接入。 |
-| JPG/NEF 真实样片及机型 | JPG 定向检查通过，NEF 待查看器验收 | Nikon Z 5 三份照片只留本地，哈希见 manifest；JPG GPS 与水印预览已核对原片哈希。NEF 坐标诊断未取得独立 Nikon 查看器认可，正式批量仍阻止。 |
+| JPG/NEF 真实样片及机型 | JPG 与已验证 NEF 坐标通过 | Nikon Z 5 三份照片只留本地，哈希见 manifest；用户已确认 NEF 试写独立检查通过。NEF 只开放已测试的 14-bit lossless / 6040×4032 编码，显影与水印暂缓。 |
 | Photoshop 字号单位与 NEF 水印输出 | 已确认 | 36 pt；在 300 ppi 基准画布换算为 150 px。NEF 加水印显影后导出 JPEG。 |
 | 组内对齐 | 已确认当前三类预览 | 用户于 2026-10-02 确认三类预览，默认可见底部对齐与 36 pt、300 px 签名、25 px 可见边距获认可；参数仍可调整。 |
-| 素材与许可证 | 已确认 | 保留现有 CC BY-SA 4.0 `LICENSE`；照片、签名、字体只留本地，不提交到 GitHub，也不纳入公开构建物。 |
+| 素材与许可证 | 最新变更已执行 | 当前项目 CC BY-NC-SA 4.0；历史发布及第三方许可不重写。照片、签名、字体只留本地，不提交到 GitHub，也不纳入公开构建物。 |
 
 ### 第 10 节决策表
 
@@ -38,8 +38,8 @@
 | Q13 | 推荐默认已实现 | WGS84 十进制度；按用户新要求写入海拔，缺省 0，地点名保存在本地列表。其他附属 GPS 的清理仍要求明确选择，不写地名。 |
 | Q14 | 本期保护规则已实现 | 正式三种流程均写输出副本；拒绝源目录、已有目标及重复加水印输入，本期没有源片覆盖模式。 |
 | Q15 | JPG 默认已实现并验收；RAW 暂缓 | 默认 JPEG 95/4:4:4、sRGB，保留有效画幅与已有 DPI；本地样片已获外观认可，参数可调。RAW 色调不在本期验收范围。 |
-| Q16 | 完整 JPG 冻结包通过自动化 | Windows x64 onedir/onefile、中文含空格路径、公开 EXE 下载后自测及 Linux DEB 已通过；用户于 2026-10-03 确认人工核验完成；未提供系统版本及逐项记录。 |
-| Q17 | 完整 JPG 版已授权并发布 | 用户后续授权逐步提交、推送及发布；`v0.3.0-rc.1` 标签触发完整构建、草稿核验、公开发布和下载验收，旧 GPS 版保留。 |
+| Q16 | 当前 0.4.0rc1 冻结包通过自动化 | Windows x64 onedir/onefile、中文含空格路径、公开 EXE 下载后自测及 Linux DEB 已通过；用户于 2026-10-03 确认人工核验完成；未提供系统版本及逐项记录。 |
+| Q17 | 当前版本已授权并发布 | 用户授权逐步提交、推送及发布；`v0.4.0-rc.1` 标签触发完整构建、草稿核验、公开发布和下载验收，历史版本保留。 |
 | Q18 | 已确认 | `NAME.png` 只留本地，不提交或捆绑公开 EXE；本地开发版本可直接加载。 |
 
 ## 阶段验证
@@ -55,8 +55,8 @@
 | S6 | JPG 后端集成通过；NEF 显影/水印延后 | JPG 三流程与当前 GPS、元数据白名单、方向/ICC、事务和取消已验证；NEF 仅坐标。 |
 | S7 | JPG 页面已验收，NEF 坐标接入通过 | 地点列表、表格编辑/导入、设置、预览、拖动、后台执行/取消/重试及报告已接入；实机人工检查见下节。 |
 | S8 | 本期集成回归与 Linux 压力检查通过 | Linux 全量 JPG 回归、90% 核心覆盖率及 100 副本批次已有记录；跨机型/其他系统不作泛化声明。 |
-| S9 | 完整 JPG 包自动化通过，用户确认人工核验完成 | Windows 两种包及中文路径、Linux DEB、许可/私人资源审计通过；人工结论来自用户确认，具体环境/逐项明细未提供；EXE 未签名。 |
-| S10 | 完整 JPG 预发布链通过 | `v0.3.0-rc.1` 标签、EXE/ZIP/DEB、哈希、公开 EXE/DEB 下载后运行已验证。 |
+| S9 | 当前 EXE/ZIP/DEB 自动化通过；已有 JPG/NEF 人工确认 | Windows 两种包及中文路径、Linux DEB、许可/私人资源审计通过；人工结论来自用户确认，具体环境/逐项明细未提供；EXE 未签名。 |
+| S10 | 当前预发布链通过，随后暂停 | `v0.4.0-rc.1` 标签、EXE/ZIP/DEB、哈希、公开 EXE/DEB 下载后运行已验证。 |
 
 ## 桌面人工验收（用户确认完成）
 
@@ -314,4 +314,82 @@ S10 下载验收增加只读 Windows job：公开 Release 发布后，重新下�
 - 坐标转换使用固定 eviltransform 提交 03ba58d92dfda57f8a1635f3805483c8fc10bd77 的公式；源归档 SHA256 已固定，原始 BSD 许可保留。公开测试向量仅以其上游测试精度比较；另与该提交的 Python 公式直接比较到 1e-12，不将数值残差解释为地面精度。
 - 项目许可按用户要求改为 CC BY-NC-SA 4.0，LICENSE 与 CC 官方全文一致（仅规范末尾空白），包元数据 License-Expression 已核对，第三方许可不变。旧发布不回写。
 - 完整本地回归（含真实样片及本地视觉资源）170 passed、2 Windows 专属 skipped；关闭转换后台线程的后续 3 项 GUI 检查通过，源码 15 类自测通过；Ruff/格式/mypy/Actionlint 与许可收集均通过。
-- 本次正式构建/发布记录待补齐；发布并下载验证完成后按用户要求暂停，不启动后续 NEF 显影或水印工作。
+- 本次正式构建/发布及公开下载验收通过，证据见下节。已按用户要求暂停，不启动后续 NEF 显影或水印工作。
+
+
+## v0.4.0-rc.1 发布、下载验收与暂停（2026-10-03）
+
+发布于 2026-10-03 23:00:52（UTC+8），为公开预发布，非草稿。源 SHA 和标签均为 `2a0ef1759a42db3d8224d105df1f2dc94b6a0865`；后续文档提交不改变标签或附件。
+
+- [发布源 Windows CI 37130710745](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/37130710745)：105 unit、27 GUI、14 metadata/pipeline passed，1 个私人素材视觉用例 deselected；Ruff、格式、mypy 与打包资源检查通过。
+- [正式发布流程 37131275318](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/37131275318)：prepare、Windows、Linux、assemble、publish、verify-published-windows 全部 success。Linux 为 105 unit、27 GUI、12 integration passed，2 个 Windows 专属 skipped，1 个私人素材视觉用例 deselected。Windows 两种冻结包均通过普通路径和中文含空格路径检查。
+- [公开 Windows 下载检查](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/37131275318/job/111227980166)：重新下载 EXE，校验哈希、标签和源 SHA，在中文含空格路径离线完成 15 类自测；该 job 未安装项目依赖或外部 ExifTool。
+- 本地公开下载：7 个附件下载至忽略目录 `build/published-v0.4.0-rc.1`，在标签源提交上执行 `check_release.py --tag v0.4.0-rc.1 --dist build/published-v0.4.0-rc.1` 通过。实际公开 DEB 解包后经 `smoke_exe.py` 验证，报告为 `version=0.4.0rc1, frozen=true, ok=true, exiftool=13.59`，15 类检查全部通过。
+- `LICENSES.zip` 完整性和根项目 LICENSE 已核对；Windows/Linux 的 eviltransform BSD 原文与固定源一致。公开 DEB copyright 与当前项目 LICENSE 一致，公开 Windows ZIP 完整性与私人照片/字体/签名、rawpy/LibRaw 排除检查通过。7 份本地原片/素材 SHA256 再次核对不变。
+- 用户报告的 `tests/gui/test_coordinate_converter.py` I001 来源为先前提交；修复 `2a0ef17` 在标准库和应用导入之间增加空行。修复后的 Windows CI 与正式 Release 已通过，当前文件再次 Ruff 检查通过；旧失败记录不覆盖或隐藏。
+
+公开安装包大小：EXE 76,171,026 字节，ZIP 76,584,244 字节，DEB 82,074,272 字节。DEB 内部版本为 `0.4.0~rc1`。下载、构建与自测日志位于本地忽略目录 `build/rc04-*`，不提交私人数据或构建缓存。
+
+15 类自测：GUI、设置、地点、预览、GPS+水印、方向、ICC、拍摄日期、原片不变、清理、报告、XLSX、NEF 范围门禁、海拔、坐标转换。真实 NEF 成功写入只在本地授权 Nikon Z 5 样片上验证，并获用户独立检查确认；冻结 NEF 合成门禁不能替代 Windows 真实 RAW 样片验收。
+
+### 计划调整与剩余边界
+
+变更均来自用户追加要求：NEF 仅坐标不导出 JPG、海拔缺省 0、批量 WGS84/GCJ-02 小工具及 CC BY-NC-SA 4.0。海拔参数保留旧调用默认值和旧列表兼容性，原公共信号保留；列表 schema 不升级。无未授权功能扩展，4 个原有未跟踪 Linux demo 文件保留原状且未提交。
+
+EXE 未签名；特殊 Windows 临时路径仍可能要求可写 ASCII TEMP。坐标转换采用公开近似公式，矩形范围和边界限制已在界面说明，数值残差不表示官方或地面精度。NEF 仅承诺已验证 Nikon Z 5 编码；其他机型/编码、显影和水印均暂缓。当前包基线为 Windows x64 runner 与 Ubuntu 24.04 / glibc 2.39，未扩展到所有桌面/发行版。Actions 提示固定依赖 Action 的 Node 20 已弃用并在平台上强制使用 Node 24，本次流程成功；未在本次范围内升级固定 Actions。
+
+**本次测试、发布和下载验收完成，工作已按用户要求暂停。**
+
+### 本轮修改文件（相对 JPG 收尾前 c14dcad）
+
+以下只列受 Git 跟踪的改动，不包含私人素材或原有未跟踪 demo：
+
+- `.github/workflows/release.yml`
+- `LICENSE`
+- `README.md`
+- `THIRD_PARTY_NOTICES.md`
+- `docs/acceptance.md`
+- `docs/build-release.md`
+- `docs/plan.md`
+- `docs/releases/v0.4.0-rc.1.md`
+- `docs/user-guide.md`
+- `packaging/AutoImageMarkTool.spec`
+- `packaging/EVILTRANSFORM_LICENSE.txt`
+- `packaging/GPS_GUI_THIRD_PARTY_NOTICES.md`
+- `packaging/THIRD_PARTY_NOTICES.md`
+- `packaging/license_sources.json`
+- `pyproject.toml`
+- `scripts/assemble_release.py`
+- `scripts/batch_gps.py`
+- `scripts/build_deb.py`
+- `scripts/build_jpg.py`
+- `scripts/check_release.py`
+- `scripts/smoke_exe.py`
+- `scripts/stage_jpg_artifact.py`
+- `src/aim_tool/__init__.py`
+- `src/aim_tool/domain/models.py`
+- `src/aim_tool/domain/validation.py`
+- `src/aim_tool/self_test_jpg.py`
+- `src/aim_tool/services/coordinate_conversion.py`
+- `src/aim_tool/services/exiftool.py`
+- `src/aim_tool/services/nef_gps.py`
+- `src/aim_tool/services/storage.py`
+- `src/aim_tool/services/table_import.py`
+- `src/aim_tool/ui/about_dialog.py`
+- `src/aim_tool/ui/coordinate_converter.py`
+- `src/aim_tool/ui/gps_window.py`
+- `src/aim_tool/ui/location_panel.py`
+- `src/aim_tool/ui/main_window.py`
+- `src/aim_tool/ui/photo_table.py`
+- `src/aim_tool/ui/workers.py`
+- `src/aim_tool/ui/workflow_panel.py`
+- `src/aim_tool/workflow/steps.py`
+- `tests/gui/test_coordinate_converter.py`
+- `tests/gui/test_location_panel.py`
+- `tests/gui/test_main_window.py`
+- `tests/gui/test_photo_table.py`
+- `tests/integration/test_exiftool.py`
+- `tests/unit/test_coordinate_conversion.py`
+- `tests/unit/test_nef_gps.py`
+- `tests/unit/test_storage_output.py`
+- `tests/unit/test_table_import.py`

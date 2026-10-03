@@ -39,6 +39,8 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/build_deb.py
 
 ## 已发布版本与下载验证
 
+[v0.4.0-rc.1](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.1) 对应源 SHA `2a0ef1759a42db3d8224d105df1f2dc94b6a0865`，正式运行 `37131275318` 全链成功。公开 EXE 中文路径自测、全部附件哈希/许可和实际公开 DEB 解包后的 15 类自测已验证。项目许可为 CC BY-NC-SA 4.0，历史版本保留原状。测试和发布完成后按用户要求暂停，详见 [验收记录](acceptance.md)。
+
 [v0.3.0-rc.1](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.3.0-rc.1) 对应源 SHA `946ea9ad9c5c0b9218ff0d4b430bf5bcf2054cf2`，正式运行 `37113456901` 成功，包含公开 Windows EXE 下载后的原生离线自测。全部公开附件哈希及实际下载的 Linux DEB 解包自测已验证，见 [验收记录](acceptance.md)。
 
 验证既有 Release 的 `check_release.py --tag ... --dist ...` 时，必须在该标签对应的 checkout 运行；它严格比较当前 HEAD、标签和 BUILD_INFO 的源 SHA。主分支随后更新文档不改变已有标签或发布附件。发布后只读 Windows job 不安装项目依赖，重新下载并校验 EXE，在中文下载目录实际运行；其失败会独立显示在正式流程中，不静默覆盖公开发行包。
