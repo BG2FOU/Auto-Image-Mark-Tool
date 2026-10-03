@@ -2,7 +2,7 @@
 
 The GPS GUI preview includes Python 3.12, PySide6 Essentials 6.11.2, Shiboken6
 6.11.2, Qt 6.11.2 libraries, the PyInstaller 6.22.3 bootloader, and ExifTool
-13.59. The project source remains under the repository's CC BY-SA 4.0
+13.59. The project source remains under the repository's CC BY-NC-SA 4.0
 `LICENSE`. Qt for Python components are offered under LGPL-3.0-only,
 GPL-2.0-only, GPL-3.0-only, or a commercial license; see the upstream license
 materials for the license applicable to each Qt component.

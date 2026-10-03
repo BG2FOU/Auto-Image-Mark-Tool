@@ -2,7 +2,7 @@
 
 This GPS-only build includes Python 3.12, the PyInstaller bootloader, and
 ExifTool 13.59. The project's own source and documentation remain under
-the repository's CC BY-SA 4.0 `LICENSE`.
+the repository's CC BY-NC-SA 4.0 `LICENSE`.
 
 | Component | Upstream and license information |
 | --- | --- |

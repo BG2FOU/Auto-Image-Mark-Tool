@@ -6,7 +6,7 @@
 
 Python 3.12.3 x64、pip 24.0、PyInstaller 6.22.3、ExifTool 13.59。依赖按 `requirements-dev.lock` 的哈希安装，再用 `pip install --no-deps --no-build-isolation -e .` 安装项目。Windows 工具通过 `scripts/fetch_tools.py --manifest packaging/toolchain.json` 准备；Linux ExifTool 源归档 URL 和 SHA256 在同一清单中。
 
-Qt/Python 等许可来源归档由 `packaging/license_sources.json` 固定版本、URL 与 SHA256。`collect_licenses.py` 只读取其中的许可文本和归属元数据，不捆绑整个源代码；上游对应版本源码下载方式保留在清单中。Linux 另按实际收集的系统库加入系统版权文件。项目保持 CC BY-SA 4.0；各依赖适用自身许可，完整声明见根目录 `THIRD_PARTY_NOTICES.md`。
+Qt/Python 等许可来源归档由 `packaging/license_sources.json` 固定版本、URL 与 SHA256。`collect_licenses.py` 只读取其中的许可文本和归属元数据，不捆绑整个源代码；上游对应版本源码下载方式保留在清单中。Linux 另按实际收集的系统库加入系统版权文件。项目保持 CC BY-NC-SA 4.0；各依赖适用自身许可，完整声明见根目录 `THIRD_PARTY_NOTICES.md`。
 
 ## 本地构建
 

@@ -1,6 +1,6 @@
 # Auto Image Mark Tool: third-party notices
 
-The project code and documentation retain CC BY-SA 4.0; see `LICENSE`.
+The project code and documentation retain CC BY-NC-SA 4.0; see `LICENSE`.
 The JPG edition includes the following upstream components. Their licenses are
 independent of the project's license and are preserved in the `licenses/`
 directory of the frozen application and in the release license archive.

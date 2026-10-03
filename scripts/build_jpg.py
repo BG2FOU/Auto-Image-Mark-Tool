@@ -46,7 +46,7 @@ def main() -> int:
  kids=[StringFileInfo([StringTable('040904b0',[
  StringStruct('CompanyName','BG2FOU'),StringStruct('ProductName','Auto Image Mark Tool'),
  StringStruct('FileVersion',{__version__!r}),StringStruct('ProductVersion',{__version__!r}),
- StringStruct('LegalCopyright','CC BY-SA 4.0 / BG2FOU')])]),
+ StringStruct('LegalCopyright','CC BY-NC-SA 4.0 / BG2FOU')])]),
  VarFileInfo([VarStruct('Translation',[1033,1200])])])"""
         ast.parse(info)
         (ROOT / "build/jpg-version-info.txt").write_text(info, encoding="utf-8")
