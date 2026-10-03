@@ -10,12 +10,14 @@ import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from aim_tool.domain.validation import validate_coordinates as _validate_coordinates
 
 VERSION = "13.59"
 ROOT = Path(__file__).resolve().parents[3]
+_WINDOWS_SPAWN_LOCK = Lock()
 
 
 class ExifToolError(RuntimeError):
@@ -49,6 +51,57 @@ def _default_executable() -> Path:
     return ROOT / "tools/exiftool-13.59/exiftool"
 
 
+def _run_frozen_windows(
+    command: list[str], directory: Path | None, input_text: str | None, timeout: int
+) -> subprocess.CompletedProcess[str]:
+    """Spawn Perl with its own DLLs, then immediately restore the GUI DLL path."""
+    if sys.platform != "win32":
+        raise OSError("Windows helper spawning requires Windows")
+    import ctypes
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.GetDllDirectoryW.argtypes = [ctypes.c_uint, ctypes.c_wchar_p]
+    kernel.GetDllDirectoryW.restype = ctypes.c_uint
+    kernel.SetDllDirectoryW.argtypes = [ctypes.c_wchar_p]
+    kernel.SetDllDirectoryW.restype = ctypes.c_int
+    environment = os.environ.copy()
+    bundle = Path(getattr(sys, "_MEIPASS", ROOT)).resolve()
+    environment["PATH"] = os.pathsep.join(
+        item
+        for item in environment.get("PATH", "").split(os.pathsep)
+        if item and not Path(item).resolve().is_relative_to(bundle)
+    )
+    with _WINDOWS_SPAWN_LOCK:
+        size = kernel.GetDllDirectoryW(0, None)
+        buffer = ctypes.create_unicode_buffer(size + 1)
+        kernel.GetDllDirectoryW(len(buffer), buffer)
+        original = buffer.value or None
+        if not kernel.SetDllDirectoryW(None):
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            process = subprocess.Popen(
+                command,
+                cwd=directory,
+                env=environment,
+                stdin=subprocess.PIPE if input_text is not None else None,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        finally:
+            kernel.SetDllDirectoryW(original)
+    try:
+        output, errors = process.communicate(input_text, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.communicate()
+        raise
+    return subprocess.CompletedProcess(command, process.returncode, output, errors)
+
+
 class ExifTool:
     def __init__(self, executable: Path | None = None, timeout: int = 90) -> None:
         self.executable = (executable or _default_executable()).resolve()
@@ -80,18 +133,23 @@ class ExifTool:
                 command = [str(interpreter), "-Ilib", "exiftool.pl", *arguments]
                 working_directory = support
         try:
-            completed = subprocess.run(
-                command,
-                cwd=working_directory,
-                capture_output=True,
-                input=argfile_input,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=self.timeout,
-                check=False,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            )
+            if sys.platform == "win32" and getattr(sys, "frozen", False):
+                completed = _run_frozen_windows(
+                    command, working_directory, argfile_input, self.timeout
+                )
+            else:
+                completed = subprocess.run(
+                    command,
+                    cwd=working_directory,
+                    capture_output=True,
+                    input=argfile_input,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=self.timeout,
+                    check=False,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
         except (OSError, subprocess.TimeoutExpired) as error:
             raise ExifToolError(f"ExifTool failed to start or timed out: {error}") from error
         if completed.returncode != 0:

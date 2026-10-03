@@ -212,3 +212,6 @@ Linux 本地完整 onedir 与 DEB（约 72 MB）构建通过；目录程序和 D
 
 
 运行 37096722648：Windows ASCII 目录版完整离线自测全部通过，中文含空格安装目录失败，日志显示官方 tiny launcher 把中文目录转成 ?? 后找不到 Perl DLL。固定官方包已包含 perl.exe、exiftool.pl 和完整 lib；适配器在该运行时存在时直接用包内 Perl、相对脚本/库路径及 Unicode cwd，不依赖外部 Perl，不改版本或公开 ExifTool API。照片参数转绝对路径保持原相对路径语义；增加原生 Windows 中文运行时目录 GPS 写回测试。许可收集同时把原包 ExifTool 许可、Strawberry Perl 许可 ZIP 和 CC0 launcher readme 纳入附件，原分发包仍完整捆绑。尚待新原生测试确认。
+
+
+运行 37097210324：Windows 源码 73 unit、23 GUI、13 metadata/pipeline 全部通过（1 视觉用例排除），包含真实中文目录 Perl GPS；ASCII 冻结自测通过，中文冻结目录的 Perl 报 exiftool.pl Invalid argument，未发布。按 PyInstaller 6.22.3 官方子进程文档，在 Windows 冻结进程创建 Perl 前临时清除 DLL 搜索目录，并从子进程 PATH 去掉冻结库目录；创建后立即恢复父进程 DLL 路径，锁仅覆盖启动，不阻塞整个处理。超时杀死并回收子进程，保持原超时接口。原生中文运行时回归同时模拟冻结 DLL 搜索路径并断言恢复，最终仍须真实冻结自测通过；不预先声称这是唯一根因。

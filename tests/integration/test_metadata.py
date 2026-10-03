@@ -104,6 +104,24 @@ def test_windows_runtime_in_unicode_directory(
 ) -> None:
     runtime = tmp_path / "中文 程序" / "exiftool"
     shutil.copytree(tool.executable.parent, runtime)
+    import ctypes
+
+    kernel = ctypes.WinDLL("kernel32")
+    buffer = ctypes.create_unicode_buffer(32768)
+    kernel.GetDllDirectoryW(len(buffer), buffer)
+    original = buffer.value or None
+    kernel.SetDllDirectoryW(str(runtime.parent))
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "_MEIPASS", str(runtime.parent), raising=False)
+    try:
+        _assert_unicode_runtime(tmp_path, runtime, monkeypatch)
+        kernel.GetDllDirectoryW(len(buffer), buffer)
+        assert Path(buffer.value).resolve() == runtime.parent.resolve()
+    finally:
+        kernel.SetDllDirectoryW(original)
+
+
+def _assert_unicode_runtime(tmp_path: Path, runtime: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     relocated = ExifTool(runtime / "exiftool.exe")
     source = tmp_path / "中文 照片.jpg"
     Image.new("RGB", (32, 24), (20, 40, 60)).save(source)
