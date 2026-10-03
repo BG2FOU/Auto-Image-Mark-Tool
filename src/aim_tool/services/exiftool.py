@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,6 +51,31 @@ def _default_executable() -> Path:
     if bundled.is_file():
         return bundled
     return ROOT / "tools/exiftool-13.59/exiftool"
+
+
+def _windows_ansi_directory(directory: Path) -> Path | None:
+    """Return a lossless ANSI path, using an existing DOS alias when needed."""
+    if sys.platform != "win32":
+        raise OSError("Windows path compatibility requires Windows")
+    import ctypes
+
+    try:
+        str(directory).encode("mbcs")
+        return directory
+    except UnicodeEncodeError:
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.GetShortPathNameW.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint]
+        kernel.GetShortPathNameW.restype = ctypes.c_uint
+        buffer = ctypes.create_unicode_buffer(32768)
+        size = kernel.GetShortPathNameW(str(directory), buffer, len(buffer))
+        if not 0 < size < len(buffer):
+            return None
+        try:
+            buffer.value.encode("mbcs")
+        except UnicodeEncodeError:
+            return None
+        # Do not resolve this alias: resolving would restore the incompatible name.
+        return Path(buffer.value)
 
 
 def _run_frozen_windows(
@@ -106,11 +133,52 @@ class ExifTool:
     def __init__(self, executable: Path | None = None, timeout: int = 90) -> None:
         self.executable = (executable or _default_executable()).resolve()
         self.timeout = timeout
+        self._support_directory: Path | None = None
+        self._runtime_temporary: tempfile.TemporaryDirectory[str] | None = None
         if not self.executable.is_file():
             raise ExifToolError(f"ExifTool is missing: {self.executable}")
-        version = self._run("-ver").strip()
-        if version != VERSION:
-            raise ExifToolError(f"Expected ExifTool {VERSION}, got {version}")
+        try:
+            version = self._run("-ver").strip()
+            if version != VERSION:
+                raise ExifToolError(f"Expected ExifTool {VERSION}, got {version}")
+        except Exception:
+            if self._runtime_temporary is not None:
+                self._runtime_temporary.cleanup()
+            raise
+
+    def _windows_runtime_directory(self, support: Path) -> Path:
+        if self._support_directory is not None:
+            return self._support_directory
+        compatible = _windows_ansi_directory(support)
+        if compatible is not None:
+            self._support_directory = compatible
+            return compatible
+        # Perl 5.32 maps even relative opens through its ANSI working directory.
+        # Volumes without DOS aliases need an unchanged copy in a private temp dir.
+        parents = [Path(tempfile.gettempdir())]
+        if local_data := os.environ.get("LOCALAPPDATA"):
+            parents.append(Path(local_data))
+        for parent in parents:
+            compatible = _windows_ansi_directory(parent)
+            if compatible is None:
+                continue
+            try:
+                temporary = tempfile.TemporaryDirectory(prefix="aim-exiftool-", dir=compatible)
+            except OSError:
+                continue
+            self._runtime_temporary = temporary
+            directory = Path(temporary.name) / "exiftool_files"
+            try:
+                shutil.copytree(support, directory)
+            except OSError as error:
+                temporary.cleanup()
+                raise ExifToolError(f"Cannot stage bundled ExifTool runtime: {error}") from error
+            self._support_directory = directory
+            return directory
+        raise ExifToolError(
+            "Bundled Perl needs a temporary directory representable in the Windows "
+            "system code page. Set TEMP to a writable directory with an ASCII path."
+        )
 
     def _run(
         self,
@@ -128,10 +196,9 @@ class ExifTool:
             support = self.executable.parent / "exiftool_files"
             interpreter = support / "perl.exe"
             if interpreter.is_file() and (support / "exiftool.pl").is_file():
-                # The supplied launcher uses ANSI paths. Relative Perl/script paths
-                # keep Unicode installation directories out of its command parser.
-                command = [str(interpreter), "-Ilib", "exiftool.pl", *arguments]
-                working_directory = support
+                # The launcher and Perl's virtual working directory use ANSI paths.
+                working_directory = self._windows_runtime_directory(support)
+                command = [str(working_directory / "perl.exe"), "-Ilib", "exiftool.pl", *arguments]
         try:
             if sys.platform == "win32" and getattr(sys, "frozen", False):
                 completed = _run_frozen_windows(

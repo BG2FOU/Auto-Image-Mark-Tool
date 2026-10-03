@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import gc
 import shutil
 import sys
+import tempfile
 from hashlib import sha256
 from pathlib import Path
 
@@ -135,3 +137,45 @@ def _assert_unicode_runtime(tmp_path: Path, runtime: Path, monkeypatch: pytest.M
     assert abs(gps.longitude - 118.4) < 1e-6
     with Image.open(source) as output:
         assert output.tobytes() == before
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows bundled Perl runtime")
+def test_windows_runtime_on_build_volume_cleans_staged_copy(
+    tmp_path: Path, tool: ExifTool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The runner's build volume has no DOS aliases, unlike its user temp volume.
+    # Keep the test on that volume so a Chinese runtime reproduces the real failure.
+    build = Path(__file__).resolve().parents[2] / "build"
+    build.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="aim-runtime-test-", dir=build) as name:
+        runtime = Path(name) / "中文 程序" / "exiftool"
+        shutil.copytree(tool.executable.parent, runtime)
+        originals = {
+            path.relative_to(runtime): sha256(path.read_bytes()).digest()
+            for path in runtime.rglob("*")
+            if path.is_file()
+        }
+        relocated = ExifTool(runtime / "exiftool.exe")
+        source = tmp_path / "中文 照片.jpg"
+        Image.new("RGB", (32, 24), (20, 40, 60)).save(source)
+        with Image.open(source) as image:
+            pixels = image.tobytes()
+        monkeypatch.chdir(tmp_path)
+        relocated.write_gps(Path(source.name), -24.2, 118.4)
+        assert relocated.read_gps(Path(source.name)) == tool.read_gps(source)
+        with Image.open(source) as image:
+            assert image.tobytes() == pixels
+        staged = relocated._runtime_temporary
+        staged_name = Path(staged.name) if staged is not None else None
+        if staged_name is not None:
+            for relative, digest in originals.items():
+                if relative.parts[0] == "exiftool_files":
+                    assert sha256((staged_name / relative).read_bytes()).digest() == digest
+        assert all(
+            sha256((runtime / path).read_bytes()).digest() == value
+            for path, value in originals.items()
+        )
+        del relocated, staged
+        gc.collect()
+        if staged_name is not None:
+            assert not staged_name.exists()
