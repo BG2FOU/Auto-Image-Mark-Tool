@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 
 from aim_tool.domain import ItemResult, ItemStatus, PhotoItem
 from aim_tool.domain.dates import resolve_capture_date
-from aim_tool.domain.validation import validate_coordinates
+from aim_tool.domain.validation import validate_altitude, validate_coordinates
 from aim_tool.services.table_import import apply_manual_date
 
 EMPTY_INDEX = QModelIndex()
@@ -48,9 +48,19 @@ class PhotoRow:
 class PhotoTableModel(QAbstractTableModel):
     message = Signal(str)
     edited = Signal()
-    CHECK, FILE, CATEGORY, SUBJECT, DATE, DATE_SOURCE, LATITUDE, LONGITUDE, STATUS, OUTPUT = range(
-        10
-    )
+    (
+        CHECK,
+        FILE,
+        CATEGORY,
+        SUBJECT,
+        DATE,
+        DATE_SOURCE,
+        LATITUDE,
+        LONGITUDE,
+        STATUS,
+        OUTPUT,
+        ALTITUDE,
+    ) = range(11)
     HEADERS = (
         "处理",
         "照片",
@@ -62,6 +72,7 @@ class PhotoTableModel(QAbstractTableModel):
         "经度",
         "状态",
         "输出",
+        "海拔（米）",
     )
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -138,6 +149,7 @@ class PhotoTableModel(QAbstractTableModel):
                 photo.edits.get("longitude_input", str(coordinates[1]) if coordinates else ""),
                 row.status,
                 row.output,
+                photo.edits.get("altitude_input", str(photo.altitude)),
             )
             value = values[column]
             return (
@@ -159,6 +171,7 @@ class PhotoTableModel(QAbstractTableModel):
             self.DATE,
             self.LATITUDE,
             self.LONGITUDE,
+            self.ALTITUDE,
         }:
             flags |= Qt.ItemFlag.ItemIsEditable
         return flags
@@ -181,6 +194,7 @@ class PhotoTableModel(QAbstractTableModel):
             self.DATE,
             self.LATITUDE,
             self.LONGITUDE,
+            self.ALTITUDE,
         }:
             edits = dict(row.photo.edits)
             key = {
@@ -189,6 +203,7 @@ class PhotoTableModel(QAbstractTableModel):
                 self.DATE: "date_input",
                 self.LATITUDE: "latitude_input",
                 self.LONGITUDE: "longitude_input",
+                self.ALTITUDE: "altitude_input",
             }[column]
             text = str(value).strip()
             if column == self.CATEGORY and text not in CATEGORIES and text:
@@ -208,7 +223,7 @@ class PhotoTableModel(QAbstractTableModel):
         return True
 
     def _changed(self, row: int) -> None:
-        self.dataChanged.emit(self.index(row, 0), self.index(row, self.OUTPUT), [])
+        self.dataChanged.emit(self.index(row, 0), self.index(row, self.columnCount() - 1), [])
 
     def add_paths(
         self, paths: Sequence[Path], import_root: Path | None = None
@@ -267,6 +282,10 @@ class PhotoTableModel(QAbstractTableModel):
                 photo = replace(photo, coordinates=coordinates)
             else:
                 photo = replace(photo, coordinates=None)
+            altitude = photo.edits.get("altitude_input", str(photo.altitude))
+            altitude_value = float(altitude.strip() or "0")
+            validate_altitude(altitude_value)
+            photo = replace(photo, altitude=altitude_value)
             photos.append(photo)
         return tuple(photos)
 

@@ -64,6 +64,7 @@ def main() -> int:
                 "report",
                 "xlsx",
                 "nef_scope",
+                "altitude",
             ],
         }
         if completed.returncode != 0 or data != expected:

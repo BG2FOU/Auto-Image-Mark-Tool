@@ -103,3 +103,27 @@ def test_watermark_settings_corruption_does_not_overwrite_backup(
     assert store.path.read_text() == "broken"
     assert store.restore_backup().params["font_size_pt"] == 24
     assert store.load() == first
+
+
+def test_legacy_location_without_altitude_defaults_zero_and_new_values_persist(
+    tmp_path: Path,
+) -> None:
+    import json
+
+    store = ConfigStore(tmp_path / "locations.json")
+    preset = LocationPreset("legacy", 1, 2)
+    store.put_location(preset)
+    data = json.loads(store.path.read_text(encoding="utf-8"))
+    del data["locations"][0]["altitude"]
+    store.path.write_text(json.dumps(data), encoding="utf-8")
+    assert store.load().locations[0].altitude == 0
+    edited = LocationPreset("below", 1, 2, id=preset.id, altitude=-12.5)
+    store.put_location(edited)
+    assert ConfigStore(store.path).load().locations == (edited,)
+    assert store.restore_backup().locations[0].altitude == 0
+
+
+@pytest.mark.parametrize("altitude", (float("nan"), float("inf"), True))
+def test_invalid_altitude_is_rejected(altitude: float) -> None:
+    with pytest.raises(ValueError, match="Altitude must be finite"):
+        LocationPreset("invalid", 1, 2, altitude=altitude)

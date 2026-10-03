@@ -78,7 +78,8 @@ class LocationStep:
             shutil.copyfileobj(original, copy, length=1024 * 1024)
         if _sha256(staged) != before:
             raise OSError("Source copy changed before GPS update")
-        self.tool.write_gps(staged, latitude, longitude)
+        altitude = context.photo.altitude if context.photo is not None else 0.0
+        self.tool.write_gps(staged, latitude, longitude, altitude)
         if nef_before is not None and fingerprint_nef(self.tool, staged) != nef_before:
             raise ValueError("NEF RAW, previews or camera metadata changed during GPS update")
         if _sha256(artifact.source) != before:
@@ -86,6 +87,7 @@ class LocationStep:
         updated = dict(artifact.metadata)
         updated["GPSLatitude"] = str(latitude)
         updated["GPSLongitude"] = str(longitude)
+        updated["GPSAltitude"] = str(altitude)
         context.progress("GPS readback passed")
         return Artifact(artifact.source, staged, artifact.kind, updated)
 

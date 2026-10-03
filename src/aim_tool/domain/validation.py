@@ -25,3 +25,8 @@ def validate_watermark_fields(category: str | None, subject: str | None) -> None
         raise ValueError("Missing or invalid watermark subject")
     if category in {"aviation", "railway"} and re.fullmatch(r"[A-Z0-9-]+", subject) is None:
         raise ValueError("Invalid aviation/railway subject")
+
+
+def validate_altitude(altitude: float) -> None:
+    if type(altitude) not in {int, float} or not math.isfinite(altitude):
+        raise ValueError("Altitude must be finite metres above or below sea level")

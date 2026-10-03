@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
 from aim_tool.domain import BatchJob, ItemResult, ItemStatus, PhotoItem
 from aim_tool.domain.dates import parse_capture_date
 from aim_tool.domain.models import Parameter
-from aim_tool.domain.validation import validate_coordinates
+from aim_tool.domain.validation import validate_altitude, validate_coordinates
 from aim_tool.services.resources import default_local_resources
 from aim_tool.services.storage import ConfigStore, WatermarkSettings, WatermarkSettingsStore
 from aim_tool.services.table_import import apply_import, apply_manual_date
@@ -127,6 +127,7 @@ class MainWindow(QMainWindow):
             (self.model.DATE_SOURCE, 80),
             (self.model.LATITUDE, 110),
             (self.model.LONGITUDE, 110),
+            (self.model.ALTITUDE, 95),
             (self.model.STATUS, 90),
             (self.model.OUTPUT, 220),
         ):
@@ -217,20 +218,24 @@ class MainWindow(QMainWindow):
         self.splitter.setSizes([210, 760, 420])
         self.splitter.setChildrenCollapsible(False)
         self.location_panel = LocationPanel(location_store, self)
-        self.location_panel.apply_requested.connect(self.apply_coordinates)
+        self.location_panel.apply_position_requested.connect(self.apply_coordinates)
         self.location_panel.message.connect(self._message)
         self.latitude = QLineEdit()
         self.latitude.setPlaceholderText("纬度 -90…90")
         self.longitude = QLineEdit()
         self.longitude.setPlaceholderText("经度 -180…180")
+        self.altitude = QLineEdit("0")
+        self.altitude.setPlaceholderText("海拔（米），缺省 0")
         self.coordinate_button = QPushButton("应用坐标到勾选")
         self.coordinate_button.clicked.connect(self.apply_coordinate_fields)
-        self.clear_auxiliary = QCheckBox("允许清除旧高度等附属 GPS")
+        self.clear_auxiliary = QCheckBox("允许清除旧时间/方向等附属 GPS")
         self.clear_auxiliary.setToolTip("只影响输出副本；已有附属 GPS 时须明确选择后才能更新坐标。")
         coordinate_controls = QHBoxLayout()
         coordinate_controls.addWidget(QLabel("WGS84"))
         coordinate_controls.addWidget(self.latitude)
         coordinate_controls.addWidget(self.longitude)
+        coordinate_controls.addWidget(QLabel("海拔（米）"))
+        coordinate_controls.addWidget(self.altitude)
         coordinate_controls.addWidget(self.coordinate_button)
         coordinate_controls.addWidget(self.clear_auxiliary)
         self.coordinates_card = QWidget()
@@ -364,7 +369,7 @@ class MainWindow(QMainWindow):
             self.model.DATE_SOURCE,
         ):
             self.table.setColumnHidden(column, not watermark)
-        for column in (self.model.LATITUDE, self.model.LONGITUDE):
+        for column in (self.model.LATITUDE, self.model.LONGITUDE, self.model.ALTITUDE):
             self.table.setColumnHidden(column, not location)
         self._schedule_preview()
 
@@ -496,9 +501,10 @@ class MainWindow(QMainWindow):
             return
         self._message(f"已应用信息到 {len(updated)} 张勾选照片。")
 
-    def apply_coordinates(self, latitude: float, longitude: float) -> None:
+    def apply_coordinates(self, latitude: float, longitude: float, altitude: float = 0.0) -> None:
         try:
             validate_coordinates(latitude, longitude)
+            validate_altitude(altitude)
             rows = [row for row in self.model.rows if row.checked]
             if not rows:
                 raise ValueError("请勾选照片")
@@ -507,20 +513,29 @@ class MainWindow(QMainWindow):
                 edits = {
                     key: value
                     for key, value in row.photo.edits.items()
-                    if key not in {"latitude_input", "longitude_input"}
+                    if key not in {"latitude_input", "longitude_input", "altitude_input"}
                 }
-                updated.append(replace(row.photo, edits=edits, coordinates=(latitude, longitude)))
+                updated.append(
+                    replace(
+                        row.photo, edits=edits, coordinates=(latitude, longitude), altitude=altitude
+                    )
+                )
             self.model.update_photos(updated)
         except ValueError as error:
             self._message(f"坐标未应用：{error}")
             return
         self.latitude.setText(str(latitude))
         self.longitude.setText(str(longitude))
+        self.altitude.setText(str(altitude))
         self._message(f"已应用坐标到 {len(updated)} 张勾选照片。")
 
     def apply_coordinate_fields(self) -> None:
         try:
-            self.apply_coordinates(float(self.latitude.text()), float(self.longitude.text()))
+            self.apply_coordinates(
+                float(self.latitude.text()),
+                float(self.longitude.text()),
+                float(self.altitude.text().strip() or "0"),
+            )
         except ValueError as error:
             self._message(f"坐标无效：{error}")
 
@@ -542,6 +557,8 @@ class MainWindow(QMainWindow):
                 if "latitude" in matches.get(photo.id, {}):
                     edits.pop("latitude_input", None)
                     edits.pop("longitude_input", None)
+                if "altitude" in matches.get(photo.id, {}):
+                    edits.pop("altitude_input", None)
                 cleaned.append(replace(photo, edits=edits))
             self.model.update_photos(cleaned)
             self._message(f"表格已应用到 {len(dialog.preview.matches)} 张照片。")

@@ -47,3 +47,16 @@ def test_manual_date_and_coordinate_errors_are_preflighted(tmp_path: Path) -> No
     assert photo.coordinates == (-24.5, 118.5)
     model.setData(model.index(0, model.DATE), "")
     assert model.snapshot()[0].taken_on is None
+
+
+def test_altitude_row_edit_and_empty_defaults_zero(tmp_path: Path) -> None:
+    source = tmp_path / "a.jpg"
+    source.write_bytes(b"stub")
+    model = PhotoTableModel()
+    model.add_paths((source,))
+    index = model.index(0, model.ALTITUDE)
+    assert model.flags(index) & Qt.ItemFlag.ItemIsEditable
+    assert model.setData(index, "-12.5")
+    assert model.snapshot()[0].altitude == -12.5
+    assert model.setData(index, "")
+    assert model.snapshot()[0].altitude == 0

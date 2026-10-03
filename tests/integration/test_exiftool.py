@@ -78,7 +78,7 @@ def test_old_auxiliary_gps_requires_clearance(tmp_path: Path, tool: ExifTool) ->
     input_root.mkdir()
     source = input_root / "old.jpg"
     Image.new("RGB", (32, 24)).save(source)
-    tool._run("-overwrite_original", "-GPS:GPSAltitude=120", str(source))
+    tool._run("-overwrite_original", "-GPS:GPSImgDirection=120", str(source))
     item = PhotoItem(source, input_root, coordinates=(0.0, 0.0))
     job = BatchJob((item,), preset("location_only"), tmp_path / "output")
     with pytest.raises(ValueError, match="auxiliary GPS"):
@@ -86,7 +86,7 @@ def test_old_auxiliary_gps_requires_clearance(tmp_path: Path, tool: ExifTool) ->
     result = run_plan(build_plan(job, _registry(tool, clear_auxiliary=True)))[0]
     assert result.output is not None
     assert tool.read_gps(result.output) is not None
-    assert "GPS:GPSAltitude" not in tool.metadata(result.output, "-GPS:GPSAltitude")
+    assert "GPS:GPSImgDirection" not in tool.metadata(result.output, "-GPS:GPSImgDirection")
 
 
 def test_real_nikon_jpeg_copy_preserves_pixels(
@@ -178,7 +178,7 @@ def test_nikon_nef_transactional_batch_preserves_format_and_payloads(
     source = _sample(ROOT / "data/DSC_0168.NEF", pytestconfig)
     source_hash = sha256(source.read_bytes()).digest()
     before = fingerprint_nef(tool, source)
-    item = PhotoItem(source, source.parent, coordinates=(-24.123456, -118.654321))
+    item = PhotoItem(source, source.parent, coordinates=(-24.123456, -118.654321), altitude=-12.5)
     output = tmp_path / "output"
     (result,) = run_plan(
         build_plan(
@@ -192,6 +192,7 @@ def test_nikon_nef_transactional_batch_preserves_format_and_payloads(
     assert gps is not None
     assert abs(gps.latitude + 24.123456) < 1e-6
     assert abs(gps.longitude + 118.654321) < 1e-6
+    assert gps.altitude == -12.5
     assert sha256(source.read_bytes()).digest() == source_hash
     assert not list(output.glob("*.jpg"))
     assert not list(output.glob(".aim-*"))
@@ -205,8 +206,8 @@ def test_nef_changed_payload_is_not_committed(
     original = sha256(source.read_bytes()).digest()
     write_gps = tool.write_gps
 
-    def corrupt_copy(path: Path, latitude: float, longitude: float) -> None:
-        write_gps(path, latitude, longitude)
+    def corrupt_copy(path: Path, latitude: float, longitude: float, altitude: float = 0.0) -> None:
+        write_gps(path, latitude, longitude, altitude)
         offset = tool.metadata(path, "-SubIFD1:StripOffsets")["SubIFD1:StripOffsets"]
         with path.open("r+b") as copy:
             copy.seek(offset)
@@ -270,3 +271,20 @@ def test_gui_mixed_jpg_nef_gps_batch_without_conversion_or_watermark_assets(
         window.close()
         qtbot.waitUntil(lambda: not window.has_active_workers, timeout=20000)
         qtbot.waitUntil(lambda: not window.isVisible(), timeout=2000)
+
+
+@pytest.mark.parametrize("altitude", (0, 125.75, -32.5))
+def test_jpg_altitude_roundtrip_and_default(
+    tmp_path: Path, tool: ExifTool, altitude: float
+) -> None:
+    source = tmp_path / "a.jpg"
+    Image.new("RGB", (16, 12)).save(source)
+    if altitude == 0:
+        tool.write_gps(source, 1, 2)
+    else:
+        tool.write_gps(source, 1, 2, altitude)
+    gps = tool.read_gps(source)
+    assert gps is not None and abs(gps.altitude - altitude) < 1e-4
+    values = tool.metadata(source, "-GPS:GPSAltitude", "-GPS:GPSAltitudeRef")
+    assert values["GPS:GPSAltitude"] == abs(altitude)
+    assert values["GPS:GPSAltitudeRef"] == (1 if altitude < 0 else 0)

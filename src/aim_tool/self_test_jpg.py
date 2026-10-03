@@ -118,14 +118,20 @@ def run_self_test(report: Path) -> int:
                 window.show()
                 application.processEvents()
                 _check(window.isVisible(), "JPG window did not open")
-                window.location_panel.save_location(LocationPreset("Smoke", -24.2, 118.4))
-                _check(len(locations.load().locations) == 1, "Location preset was not saved")
+                window.location_panel.save_location(
+                    LocationPreset("Smoke", -24.2, 118.4, altitude=125.5)
+                )
+                _check(
+                    len(locations.load().locations) == 1
+                    and locations.load().locations[0].altitude == 125.5,
+                    "Location preset altitude was not saved",
+                )
                 window.add_photos((source,))
                 window.workflow.presets.setCurrentIndex(2)
                 window.bulk_subject.setText("B-1356")
                 window.bulk_date.setText("2026/9/26")
                 window.apply_fields_button.click()
-                window.apply_coordinates(-24.2, 118.4)
+                window.apply_coordinates(-24.2, 118.4, -12.5)
                 window.output_edit.setText(str(root / "output"))
                 _wait(lambda: window.preview.last_result is not None)
                 preview = window.preview.last_result
@@ -143,7 +149,8 @@ def run_self_test(report: Path) -> int:
                 _check(
                     gps is not None
                     and abs(gps.latitude + 24.2) <= 1e-6
-                    and abs(gps.longitude - 118.4) <= 1e-6,
+                    and abs(gps.longitude - 118.4) <= 1e-6
+                    and abs(gps.altitude + 12.5) <= 1e-4,
                     "GPS readback failed",
                 )
                 _check(
@@ -219,6 +226,7 @@ def run_self_test(report: Path) -> int:
                     "report",
                     "xlsx",
                     "nef_scope",
+                    "altitude",
                 ],
             )
     except Exception as error:  # noqa: BLE001 - windowless builds report all smoke failures

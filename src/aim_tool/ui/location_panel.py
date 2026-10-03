@@ -41,6 +41,8 @@ class LocationDialog(QDialog):
         self.name_edit = QLineEdit(existing.name if existing else "")
         self.latitude_edit = QLineEdit(str(existing.latitude) if existing else "")
         self.longitude_edit = QLineEdit(str(existing.longitude) if existing else "")
+        self.altitude_edit = QLineEdit(str(existing.altitude) if existing else "0")
+        self.altitude_edit.setPlaceholderText("缺省为 0")
         self.error_label = QLabel()
         self.error_label.setStyleSheet("color: #b00020")
         self._original_id = existing.id if existing else None
@@ -48,6 +50,7 @@ class LocationDialog(QDialog):
         form.addRow("名称", self.name_edit)
         form.addRow("WGS84 纬度", self.latitude_edit)
         form.addRow("WGS84 经度", self.longitude_edit)
+        form.addRow("海拔（米）", self.altitude_edit)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
@@ -65,9 +68,10 @@ class LocationDialog(QDialog):
         latitude = float(self.latitude_edit.text().strip())
         longitude = float(self.longitude_edit.text().strip())
         validate_coordinates(latitude, longitude)
+        altitude = float(self.altitude_edit.text().strip() or "0")
         if self._original_id is None:
-            return LocationPreset(name, latitude, longitude)
-        return LocationPreset(name, latitude, longitude, id=self._original_id)
+            return LocationPreset(name, latitude, longitude, altitude=altitude)
+        return LocationPreset(name, latitude, longitude, id=self._original_id, altitude=altitude)
 
     def _validate_and_accept(self) -> None:
         try:
@@ -80,6 +84,7 @@ class LocationDialog(QDialog):
 
 class LocationPanel(QWidget):
     apply_requested = Signal(float, float)
+    apply_position_requested = Signal(float, float, float)
     message = Signal(str)
 
     def __init__(self, store: ConfigStore | None = None, parent: QWidget | None = None) -> None:
@@ -148,7 +153,8 @@ class LocationPanel(QWidget):
             if query and query not in location.name.casefold():
                 continue
             self.location_combo.addItem(
-                f"{location.name} ({location.latitude}, {location.longitude})", str(location.id)
+                f"{location.name} ({location.latitude}, {location.longitude}; {location.altitude:g} m)",
+                str(location.id),
             )
         if selected is not None:
             index = self.location_combo.findData(selected)
@@ -219,6 +225,9 @@ class LocationPanel(QWidget):
         location = self.selected_location()
         if location is not None:
             self.apply_requested.emit(location.latitude, location.longitude)
+            self.apply_position_requested.emit(
+                location.latitude, location.longitude, location.altitude
+            )
 
     def import_locations(self) -> None:
         filename, _ = QFileDialog.getOpenFileName(self, "导入坐标列表", "", "JSON (*.json)")

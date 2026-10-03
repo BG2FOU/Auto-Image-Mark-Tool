@@ -69,7 +69,7 @@ def test_gui_combined_export_preserves_current_gps_and_source(
         window.bulk_subject.setText("B-1356")
         window.bulk_date.setText("2026/9/26")
         window.apply_fields_button.click()
-        window.apply_coordinates(-24.2, 118.4)
+        window.apply_coordinates(-24.2, 118.4, 125.5)
         output = tmp_path / "out"
         window.output_edit.setText(str(output))
         window.start_button.click()
@@ -84,6 +84,7 @@ def test_gui_combined_export_preserves_current_gps_and_source(
             gps is not None
             and abs(gps.latitude + 24.2) <= 1e-6
             and abs(gps.longitude - 118.4) <= 1e-6
+            and abs(gps.altitude - 125.5) <= 1e-4
         )
         assert tool.metadata(target)["ExifIFD:DateTimeOriginal"] == "2026:09:26 15:33:31"
         with Image.open(target) as image:

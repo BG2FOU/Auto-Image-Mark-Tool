@@ -11,6 +11,8 @@ from pathlib import Path
 from types import MappingProxyType
 from uuid import UUID, uuid4
 
+from aim_tool.domain.validation import validate_altitude
+
 
 class ImageKind(StrEnum):
     JPEG = "jpeg"
@@ -54,8 +56,10 @@ class PhotoItem:
     edits: Mapping[str, str] = field(default_factory=dict)
     taken_on: date | None = None
     coordinates: tuple[float, float] | None = None
+    altitude: float = 0.0
 
     def __post_init__(self) -> None:
+        validate_altitude(self.altitude)
         object.__setattr__(self, "source", self.source.resolve())
         object.__setattr__(self, "import_root", self.import_root.resolve())
         object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
@@ -70,8 +74,10 @@ class LocationPreset:
     id: UUID = field(default_factory=uuid4)
     coordinate_system: str = "WGS84"
     schema_version: int = 1
+    altitude: float = 0.0
 
     def __post_init__(self) -> None:
+        validate_altitude(self.altitude)
         if (
             not self.name
             or self.coordinate_system != "WGS84"

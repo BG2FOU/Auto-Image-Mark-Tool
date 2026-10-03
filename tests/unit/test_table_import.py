@@ -180,3 +180,14 @@ def test_explicit_custom_headers_share_csv_and_clipboard_validation(tmp_path: Pa
     assert read_table(table, column_mapping=mapping) == rows
     with pytest.raises(TableImportError, match="supported field"):
         read_pasted_tsv(text, column_mapping={"图片": "unknown"})
+
+
+def test_altitude_import_missing_zero_negative_and_invalid(tmp_path: Path) -> None:
+    photo = _photo(tmp_path / "input", "a.jpg", altitude=125.5)
+    for cell, expected in (("", 0), ("-12.5", -12.5)):
+        rows = read_pasted_tsv(f"文件名\t纬度\t经度\t海拔\na.jpg\t1\t2\t{cell}\n")
+        preview = preview_import(rows, (photo,))
+        assert not preview.errors
+        assert apply_import(preview, (photo,))[0].altitude == expected
+    invalid = read_pasted_tsv("file_name\taltitude\na.jpg\tnan\n")
+    assert preview_import(invalid, (photo,)).errors

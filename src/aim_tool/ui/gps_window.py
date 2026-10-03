@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from aim_tool.domain import BatchJob, ItemResult, ItemStatus, PhotoItem
+from aim_tool.domain.validation import validate_altitude
 from aim_tool.services.exiftool import ExifTool, validate_coordinates
 from aim_tool.services.storage import ConfigStore
 from aim_tool.ui.location_panel import LocationPanel
@@ -56,8 +57,8 @@ class GpsWindow(QMainWindow):
         self._close_after_run = False
         self.allow_nef_after_viewer_check = allow_nef_after_viewer_check
 
-        self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(("处理", "照片", "纬度", "经度", "状态"))
+        self.table = QTableWidget(0, 6)
+        self.table.setHorizontalHeaderLabels(("处理", "照片", "纬度", "经度", "状态", "海拔（米）"))
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSortingEnabled(True)
         self.table.horizontalHeader().setStretchLastSection(True)
@@ -79,6 +80,7 @@ class GpsWindow(QMainWindow):
 
         self.bulk_latitude = QLineEdit()
         self.bulk_longitude = QLineEdit()
+        self.bulk_altitude = QLineEdit("0")
         self.bulk_latitude.setPlaceholderText("-90 到 90")
         self.bulk_longitude.setPlaceholderText("-180 到 180")
         self.apply_button = QPushButton("应用到勾选照片")
@@ -88,10 +90,12 @@ class GpsWindow(QMainWindow):
         bulk_row.addWidget(self.bulk_latitude)
         bulk_row.addWidget(QLabel("经度"))
         bulk_row.addWidget(self.bulk_longitude)
+        bulk_row.addWidget(QLabel("海拔（米）"))
+        bulk_row.addWidget(self.bulk_altitude)
         bulk_row.addWidget(self.apply_button)
 
         self.location_panel = LocationPanel(location_store, self)
-        self.location_panel.apply_requested.connect(self.apply_location_coordinates)
+        self.location_panel.apply_position_requested.connect(self.apply_location_coordinates)
         self.location_panel.message.connect(self._message)
 
         self.output_root_edit = QLineEdit()
@@ -198,7 +202,7 @@ class GpsWindow(QMainWindow):
             status = QTableWidgetItem("待检查")
             status.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
             for column, item in enumerate(
-                (check, name, QTableWidgetItem(), QTableWidgetItem(), status)
+                (check, name, QTableWidgetItem(), QTableWidgetItem(), status, QTableWidgetItem("0"))
             ):
                 self.table.setItem(row, column, item)
             added += 1
@@ -231,6 +235,8 @@ class GpsWindow(QMainWindow):
             latitude = float(self.bulk_latitude.text().strip())
             longitude = float(self.bulk_longitude.text().strip())
             validate_coordinates(latitude, longitude)
+            altitude = float(self.bulk_altitude.text().strip() or "0")
+            validate_altitude(altitude)
             rows = self._checked_rows()
             if not rows:
                 raise ValueError("请先勾选照片")
@@ -241,11 +247,15 @@ class GpsWindow(QMainWindow):
             self._item(row, 2).setText(str(latitude))
             self._item(row, 3).setText(str(longitude))
             self._item(row, 4).setText("待检查")
+            self._item(row, 5).setText(str(altitude))
         self._message(f"已将坐标应用到 {len(rows)} 张勾选照片。")
 
-    def apply_location_coordinates(self, latitude: float, longitude: float) -> None:
+    def apply_location_coordinates(
+        self, latitude: float, longitude: float, altitude: float = 0.0
+    ) -> None:
         self.bulk_latitude.setText(str(latitude))
         self.bulk_longitude.setText(str(longitude))
+        self.bulk_altitude.setText(str(altitude))
         self.apply_bulk_coordinates()
 
     def _build_plan(self) -> ExecutionPlan:
@@ -262,6 +272,8 @@ class GpsWindow(QMainWindow):
                 latitude = float(latitude_text)
                 longitude = float(longitude_text)
                 validate_coordinates(latitude, longitude)
+                altitude = float(self._item(row, 5).text().strip() or "0")
+                validate_altitude(altitude)
             except ValueError as error:
                 raise ValueError(f"第 {row + 1} 行坐标无效：{error}") from error
             photos.append(
@@ -273,6 +285,7 @@ class GpsWindow(QMainWindow):
                     edits=original.edits,
                     taken_on=original.taken_on,
                     coordinates=(latitude, longitude),
+                    altitude=altitude,
                 )
             )
         if self._tool is None:

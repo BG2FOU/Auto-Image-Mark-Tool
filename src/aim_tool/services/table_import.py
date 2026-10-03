@@ -17,7 +17,11 @@ from openpyxl import load_workbook  # type: ignore[import-untyped]
 
 from aim_tool.domain import PhotoItem
 from aim_tool.domain.dates import DateError, DateInput, parse_capture_date
-from aim_tool.domain.validation import validate_coordinates, validate_watermark_fields
+from aim_tool.domain.validation import (
+    validate_altitude,
+    validate_coordinates,
+    validate_watermark_fields,
+)
 
 FIELDS = (
     "file_name",
@@ -27,6 +31,7 @@ FIELDS = (
     "location_name",
     "latitude",
     "longitude",
+    "altitude",
 )
 HEADERS = {
     **{field: field for field in FIELDS},
@@ -37,6 +42,8 @@ HEADERS = {
     "地点": "location_name",
     "纬度": "latitude",
     "经度": "longitude",
+    "海拔": "altitude",
+    "海拔（米）": "altitude",
 }
 
 
@@ -199,6 +206,11 @@ def _validate_values(row: ImportedRow, photo: PhotoItem) -> None:
             parse_capture_date(values["capture_date"])
         except DateError as error:
             raise TableImportError(f"Row {row.line}: {error}") from error
+    if "altitude" in values:
+        try:
+            validate_altitude(float(str(values["altitude"])))
+        except (ValueError, TypeError) as error:
+            raise TableImportError(f"Row {row.line}: invalid altitude") from error
     if ("latitude" in values) != ("longitude" in values):
         raise TableImportError(f"Row {row.line}: latitude and longitude must be paired")
     if "latitude" in values:
@@ -279,5 +291,14 @@ def apply_import(preview: ImportPreview, photos: tuple[PhotoItem, ...]) -> tuple
         coordinates = photo.coordinates
         if "latitude" in values:
             coordinates = (float(str(values["latitude"])), float(str(values["longitude"])))
-        updated.append(replace(photo, edits=edits, taken_on=day, coordinates=coordinates))
+        altitude = (
+            float(str(values["altitude"]))
+            if "altitude" in values
+            else 0.0
+            if "latitude" in values
+            else photo.altitude
+        )
+        updated.append(
+            replace(photo, edits=edits, taken_on=day, coordinates=coordinates, altitude=altitude)
+        )
     return tuple(updated)

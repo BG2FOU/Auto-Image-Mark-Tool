@@ -91,6 +91,7 @@ def _read_config(path: Path) -> AppConfig:
                 not isinstance(raw_location.get("name"), str)
                 or type(raw_location.get("latitude")) not in {int, float}
                 or type(raw_location.get("longitude")) not in {int, float}
+                or type(raw_location.get("altitude", 0)) not in {int, float}
                 or raw_location.get("coordinate_system") != "WGS84"
                 or raw_location.get("schema_version") != 1
             ):
@@ -110,6 +111,7 @@ def _read_config(path: Path) -> AppConfig:
                     latitude,
                     longitude,
                     UUID(raw_location["id"]),
+                    altitude=float(raw_location.get("altitude", 0)),
                 )
             )
         if len({location.id for location in locations}) != len(locations):
@@ -149,6 +151,7 @@ def _serialize(config: AppConfig) -> str:
                 "name": location.name,
                 "latitude": location.latitude,
                 "longitude": location.longitude,
+                "altitude": location.altitude,
                 "coordinate_system": location.coordinate_system,
                 "schema_version": location.schema_version,
             }

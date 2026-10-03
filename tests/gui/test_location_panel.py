@@ -41,6 +41,7 @@ def test_location_gui_crud_search_and_apply(qtbot: QtBot, tmp_path: Path) -> Non
         dialog.name_edit.setText("厦门")
         dialog.latitude_edit.setText("24.478123")
         dialog.longitude_edit.setText("118.085456")
+        dialog.altitude_edit.setText("12.5")
         dialog._validate_and_accept()
 
     QTimer.singleShot(0, fill_add_dialog)
@@ -48,6 +49,7 @@ def test_location_gui_crud_search_and_apply(qtbot: QtBot, tmp_path: Path) -> Non
     assert store.path.is_file()
     original = store.load().locations[0]
     assert original.name == "厦门"
+    assert original.altitude == 12.5
     assert window.location_panel.location_combo.count() == 1
     window.location_panel.search_edit.setText("不存在")
     assert window.location_panel.location_combo.count() == 0
@@ -55,6 +57,7 @@ def test_location_gui_crud_search_and_apply(qtbot: QtBot, tmp_path: Path) -> Non
     window.location_panel.apply_button.click()
     assert window._item(0, 2).text() == "24.478123"
     assert window._item(0, 3).text() == "118.085456"
+    assert window._item(0, 5).text() == "12.5"
     assert window._item(1, 2).text() == ""
 
     def fill_edit_dialog() -> None:
@@ -62,6 +65,7 @@ def test_location_gui_crud_search_and_apply(qtbot: QtBot, tmp_path: Path) -> Non
         assert dialog is not None
         dialog.name_edit.setText("海沧")
         dialog.latitude_edit.setText("24.5")
+        dialog.altitude_edit.clear()
         dialog._validate_and_accept()
 
     QTimer.singleShot(0, fill_edit_dialog)
@@ -70,6 +74,7 @@ def test_location_gui_crud_search_and_apply(qtbot: QtBot, tmp_path: Path) -> Non
     assert edited.id == original.id
     assert edited.name == "海沧"
     assert edited.latitude == 24.5
+    assert edited.altitude == 0
     reopened = GpsWindow(location_store=store)
     qtbot.addWidget(reopened)
     assert reopened.location_panel.selected_location() == edited

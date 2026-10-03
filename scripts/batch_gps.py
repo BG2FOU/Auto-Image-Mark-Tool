@@ -50,6 +50,7 @@ def load_rows(table: Path, input_root: Path) -> tuple[PhotoItem, ...]:
                     root / relative,
                     root,
                     coordinates=(latitude, longitude),
+                    altitude=float(row.get("altitude", "").strip() or "0"),
                 )
             )
     if not items:

@@ -15,6 +15,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
+from aim_tool.domain.validation import validate_altitude
 from aim_tool.domain.validation import validate_coordinates as _validate_coordinates
 
 VERSION = "13.59"
@@ -30,6 +31,7 @@ class ExifToolError(RuntimeError):
 class GpsCoordinates:
     latitude: float
     longitude: float
+    altitude: float = 0.0
 
 
 def validate_coordinates(latitude: float, longitude: float) -> None:
@@ -257,6 +259,8 @@ class ExifTool:
             "-GPS:GPSLatitudeRef",
             "-GPS:GPSLongitude",
             "-GPS:GPSLongitudeRef",
+            "-GPS:GPSAltitude",
+            "-GPS:GPSAltitudeRef",
         )
         keys = (
             "GPS:GPSLatitude",
@@ -282,13 +286,23 @@ class ExifTool:
         signed_latitude = float(latitude) * (-1 if latitude_ref == "S" else 1)
         signed_longitude = float(longitude) * (-1 if longitude_ref == "W" else 1)
         validate_coordinates(signed_latitude, signed_longitude)
-        return GpsCoordinates(signed_latitude, signed_longitude)
+        altitude = values.get("GPS:GPSAltitude", 0)
+        altitude_ref = values.get("GPS:GPSAltitudeRef", 0)
+        if ("GPS:GPSAltitude" in values) != ("GPS:GPSAltitudeRef" in values):
+            raise ExifToolError("GPS altitude fields are incomplete")
+        if type(altitude) not in {int, float} or altitude < 0 or altitude_ref not in {0, 1}:
+            raise ExifToolError("GPS altitude fields are invalid")
+        signed_altitude = float(altitude) * (-1 if altitude_ref == 1 else 1)
+        validate_altitude(signed_altitude)
+        return GpsCoordinates(signed_latitude, signed_longitude, signed_altitude)
 
     def has_auxiliary_gps(self, path: Path) -> bool:
         values = self.metadata(path, "-gps:all")
         ordinary = {
             "SourceFile",
             "GPS:GPSVersionID",
+            "GPS:GPSAltitude",
+            "GPS:GPSAltitudeRef",
             "GPS:GPSLatitude",
             "GPS:GPSLatitudeRef",
             "GPS:GPSLongitude",
@@ -296,8 +310,11 @@ class ExifTool:
         }
         return any(key not in ordinary for key in values)
 
-    def write_gps(self, path: Path, latitude: float, longitude: float) -> None:
+    def write_gps(
+        self, path: Path, latitude: float, longitude: float, altitude: float = 0.0
+    ) -> None:
         validate_coordinates(latitude, longitude)
+        validate_altitude(altitude)
         args = (
             "-overwrite_original",
             "-P",
@@ -306,11 +323,15 @@ class ExifTool:
             f"-GPS:GPSLatitudeRef={'S' if latitude < 0 else 'N'}",
             f"-GPS:GPSLongitude={abs(longitude):.12f}",
             f"-GPS:GPSLongitudeRef={'W' if longitude < 0 else 'E'}",
+            f"-GPS:GPSAltitude={abs(altitude):.6f}",
+            f"-GPS:GPSAltitudeRef#={1 if altitude < 0 else 0}",
         )
         self._run_for_path(path, *args)
         readback = self.read_gps(path)
         if readback is None or (
-            abs(readback.latitude - latitude) > 1e-6 or abs(readback.longitude - longitude) > 1e-6
+            abs(readback.latitude - latitude) > 1e-6
+            or abs(readback.longitude - longitude) > 1e-6
+            or abs(readback.altitude - altitude) > 1e-4
         ):
             raise ExifToolError("GPS readback differs from requested coordinates")
 
