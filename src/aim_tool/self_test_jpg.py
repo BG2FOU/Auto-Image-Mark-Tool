@@ -101,7 +101,7 @@ def run_self_test(report: Path) -> int:
             original = sha256(source.read_bytes()).digest()
             tool = ExifTool(timeout=30)
             if result["frozen"]:
-                bundle = Path(getattr(sys, "_MEIPASS", ""))
+                bundle = Path(getattr(sys, "_MEIPASS", "")).resolve()
                 _check(tool.executable.is_relative_to(bundle), "ExifTool is not bundled")
             settings = WatermarkSettingsStore(root / "settings.json")
             expected_settings = WatermarkSettings(_resources(root))
