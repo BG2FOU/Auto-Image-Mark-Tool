@@ -126,6 +126,16 @@ jobs:
       - name: Build and smoke single executable
         shell: pwsh
         run: .\scripts\build.ps1 -Mode onefile
+      - name: Smoke single executable in a Chinese path with spaces
+        run: |
+          .venv/Scripts/python.exe - <<'PY'
+          import shutil
+          from pathlib import Path
+          target = Path('build/中文 单文件程序')
+          target.mkdir()
+          shutil.copy2('dist/AutoImageMarkTool.exe', target/'AutoImageMarkTool.exe')
+          PY
+          .venv/Scripts/python.exe scripts/smoke_exe.py --exe 'build/中文 单文件程序/AutoImageMarkTool.exe'
       - name: Audit and stage public artifacts
         run: .venv/Scripts/python.exe scripts/stage_jpg_artifact.py --output build/windows-artifact
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
