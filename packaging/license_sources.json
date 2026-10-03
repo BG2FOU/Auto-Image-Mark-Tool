@@ -56,6 +56,13 @@
       "url": "https://codeload.github.com/python/cpython/tar.gz/refs/tags/v3.12.3",
       "source": "https://github.com/python/cpython/tree/v3.12.3",
       "sha256": "5c91f5e64a3c85c582cd0454edafb820d4f6226a8eab232cd05185de60350c8d"
+    },
+    {
+      "name": "eviltransform",
+      "version": "03ba58d92dfda57f8a1635f3805483c8fc10bd77",
+      "url": "https://codeload.github.com/googollee/eviltransform/tar.gz/03ba58d92dfda57f8a1635f3805483c8fc10bd77",
+      "source": "https://github.com/googollee/eviltransform/tree/03ba58d92dfda57f8a1635f3805483c8fc10bd77",
+      "sha256": "438bcda29f20f291c35e60f6d7b1eaefcd8eaf8e6a2fa61c6d95ab87d8510359"
     }
   ]
 }

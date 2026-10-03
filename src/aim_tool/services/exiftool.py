@@ -290,7 +290,12 @@ class ExifTool:
         altitude_ref = values.get("GPS:GPSAltitudeRef", 0)
         if ("GPS:GPSAltitude" in values) != ("GPS:GPSAltitudeRef" in values):
             raise ExifToolError("GPS altitude fields are incomplete")
-        if type(altitude) not in {int, float} or altitude < 0 or altitude_ref not in {0, 1}:
+        if (
+            type(altitude) not in {int, float}
+            or altitude < 0
+            or type(altitude_ref) is not int
+            or altitude_ref not in {0, 1}
+        ):
             raise ExifToolError("GPS altitude fields are invalid")
         signed_altitude = float(altitude) * (-1 if altitude_ref == 1 else 1)
         validate_altitude(signed_altitude)

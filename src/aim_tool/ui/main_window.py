@@ -37,6 +37,7 @@ from aim_tool.services.table_import import apply_import, apply_manual_date
 from aim_tool.services.templates import project_default_config
 from aim_tool.services.watermark import watermark_scale
 from aim_tool.ui.about_dialog import AboutDialog
+from aim_tool.ui.coordinate_converter import CoordinateConverterDialog
 from aim_tool.ui.import_dialog import ImportDialog
 from aim_tool.ui.location_panel import LocationPanel
 from aim_tool.ui.photo_table import CATEGORIES, PhotoTableModel, PhotoTableView
@@ -307,6 +308,8 @@ class MainWindow(QMainWindow):
         heading_group.addWidget(subtitle)
         self.settings_button = QPushButton("水印设置")
         self.settings_button.clicked.connect(self.open_settings)
+        self.tools_button = QPushButton("小工具 · 坐标转换")
+        self.tools_button.clicked.connect(self.open_coordinate_converter)
         about = QPushButton("关于")
         about.clicked.connect(lambda: AboutDialog(self).exec())
         header = QHBoxLayout()
@@ -314,6 +317,7 @@ class MainWindow(QMainWindow):
         header.addSpacing(16)
         header.addLayout(heading_group)
         header.addStretch()
+        header.addWidget(self.tools_button)
         header.addWidget(self.settings_button)
         header.addWidget(about)
         container = QWidget()
@@ -563,6 +567,11 @@ class MainWindow(QMainWindow):
             self.model.update_photos(cleaned)
             self._message(f"表格已应用到 {len(dialog.preview.matches)} 张照片。")
 
+    def open_coordinate_converter(self) -> None:
+        dialog = CoordinateConverterDialog(self.location_panel.store, self)
+        dialog.locations_saved.connect(self.location_panel._reload)
+        dialog.exec()
+
     def open_settings(self) -> None:
         dialog = SettingsDialog(self.settings, self.settings_store, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -751,6 +760,7 @@ class MainWindow(QMainWindow):
             self.check_button,
             self.start_button,
             self.settings_button,
+            self.tools_button,
             self.retry_button,
             self.report_button,
             self.preview,

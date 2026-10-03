@@ -87,11 +87,14 @@ def _read_config(path: Path) -> AppConfig:
         for raw_location in raw_locations:
             if not isinstance(raw_location, dict):
                 raise ConfigError("Invalid location entry")
+            altitude_value = raw_location.get("altitude", 0)
+            if altitude_value is None:
+                altitude_value = 0
             if (
                 not isinstance(raw_location.get("name"), str)
                 or type(raw_location.get("latitude")) not in {int, float}
                 or type(raw_location.get("longitude")) not in {int, float}
-                or type(raw_location.get("altitude", 0)) not in {int, float}
+                or type(altitude_value) not in {int, float}
                 or raw_location.get("coordinate_system") != "WGS84"
                 or raw_location.get("schema_version") != 1
             ):
@@ -111,7 +114,7 @@ def _read_config(path: Path) -> AppConfig:
                     latitude,
                     longitude,
                     UUID(raw_location["id"]),
-                    altitude=float(raw_location.get("altitude", 0)),
+                    altitude=float(altitude_value),
                 )
             )
         if len({location.id for location in locations}) != len(locations):

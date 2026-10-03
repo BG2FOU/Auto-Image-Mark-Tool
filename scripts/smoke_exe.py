@@ -65,6 +65,7 @@ def main() -> int:
                 "xlsx",
                 "nef_scope",
                 "altitude",
+                "coordinate_conversion",
             ],
         }
         if completed.returncode != 0 or data != expected:

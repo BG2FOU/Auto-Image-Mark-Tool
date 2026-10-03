@@ -24,6 +24,7 @@ from aim_tool.services.nef_gps import require_tested_nef
 from aim_tool.services.storage import ConfigStore, WatermarkSettings, WatermarkSettingsStore
 from aim_tool.services.table_import import read_table
 from aim_tool.services.watermark import WatermarkResources
+from aim_tool.ui.coordinate_converter import CoordinateConverterDialog
 from aim_tool.ui.main_window import MainWindow
 
 
@@ -178,6 +179,25 @@ def run_self_test(report: Path) -> int:
                 _check(
                     read_table(root / "batch.xlsx")[0].values["subject"] == "B-1356", "XLSX failed"
                 )
+                converted_store = ConfigStore(root / "converted-locations.json")
+                converter = CoordinateConverterDialog(converted_store, window)
+                converter.show()
+                converter.input.setPlainText(
+                    "name,latitude,longitude,altitude,coordinate_system\n"
+                    "PublicTest,39.91334545536069,116.38404722455657,-12.5,GCJ-02\n"
+                )
+                converter.convert_button.click()
+                _wait(lambda: converter._worker is None)
+                _check(converter.save_button.isEnabled(), "Coordinate conversion preview failed")
+                converter.save_button.click()
+                converted_location = converted_store.load().locations[0]
+                _check(
+                    abs(converted_location.latitude - 39.911954) < 2e-7
+                    and abs(converted_location.longitude - 116.377817) < 2e-7
+                    and converted_location.altitude == -12.5,
+                    "Converted location or altitude was not saved",
+                )
+                converter.close()
                 # A renamed synthetic JPEG is deliberately NOT a valid supported NEF.
                 # Test packaging and rejection; this does not certify a real camera file.
                 invalid_nef = root / "unsupported.NEF"
@@ -227,6 +247,7 @@ def run_self_test(report: Path) -> int:
                     "xlsx",
                     "nef_scope",
                     "altitude",
+                    "coordinate_conversion",
                 ],
             )
     except Exception as error:  # noqa: BLE001 - windowless builds report all smoke failures

@@ -1,7 +1,7 @@
 # Auto Image Mark Tool: third-party notices
 
 The project code and documentation retain CC BY-NC-SA 4.0; see `LICENSE`.
-The JPG edition includes the following upstream components. Their licenses are
+The desktop edition includes the following upstream components. Their licenses are
 independent of the project's license and are preserved in the `licenses/`
 directory of the frozen application and in the release license archive.
 
@@ -16,6 +16,7 @@ directory of the frozen application and in the release license archive.
 | platformdirs | 4.12.2 | MIT: https://github.com/tox-dev/platformdirs/tree/4.12.2 |
 | PyInstaller bootloader | 6.22.3 | GPL with the bootloader exception; complete COPYING included. https://github.com/pyinstaller/pyinstaller/tree/v6.22.3 |
 | Windows bundled Perl runtime | Pinned ExifTool 13.59 distribution | Original `Licenses_Strawberry_Perl.zip` and `readme_windows.txt` are included; see https://strawberryperl.com/ . The original launcher is CC0, as documented in that readme. |
+| eviltransform formula (adapted) | 03ba58d92dfda57f8a1635f3805483c8fc10bd77 | BSD-2-Clause; copyright and full terms in packaging/EVILTRANSFORM_LICENSE.txt and bundled licenses/eviltransform/LICENSE. https://github.com/googollee/eviltransform/tree/03ba58d92dfda57f8a1635f3805483c8fc10bd77 |
 | ExifTool | 13.59 | Same terms as Perl; original LICENSE and complete required runtime included. https://github.com/exiftool/exiftool/tree/13.59 |
 
 `licenses/SOURCE_ARCHIVES.json` records the exact upstream archive URLs and

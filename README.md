@@ -22,6 +22,7 @@ Windows 双击 EXE，或解压 ZIP 后运行其中的 EXE；Linux 用 `sudo apt 
 | 水印 | JPG / JPEG | `_marked.jpg`，保留像素尺寸和拍摄信息 |
 | 坐标＋水印 | JPG / JPEG | `_marked.jpg`，保留本次写入的新 GPS |
 
+- 海拔写入默认 0，坐标列表支持维护高度；小工具支持离线批量 GCJ-02 ↔ WGS84 与转换结果追加列表。
 - 坐标列表支持维护、搜索、导入/导出和备份恢复；Windows 便携 EXE 的 `locations.json` 与 EXE 同目录。
 - 航空、铁路、风光三类水印；字号使用 pt，文字、签名、间距和边距按实际画幅一起缩放，与照片 DPI 无关。
 - 逐行编辑、勾选批量应用、CSV/TSV/XLSX 与剪贴板导入预览。

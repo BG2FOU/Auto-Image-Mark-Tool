@@ -63,6 +63,8 @@ def main() -> int:
                     "gps_watermark",
                     "xlsx",
                     "nef_scope",
+                    "altitude",
+                    "coordinate_conversion",
                 ],
                 "private_assets": "excluded",
                 "nef": "gps_only_nikon_z5_14bit_lossless",
