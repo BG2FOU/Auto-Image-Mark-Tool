@@ -419,3 +419,14 @@ EXE 未签名；特殊 Windows 临时路径仍可能要求可写 ASCII TEMP。�
 - 本地 unit、GUI、ExifTool、metadata、pipeline 及新蒙版回归共 183 passed、2 Windows 专属 skipped、1 visual deselected；日志位于忽略的 build/rc04-jpg-warning-regression.log。Ruff、格式（91 文件）、mypy（41 源文件）和源版本检查通过。
 - Windows CI 与 Windows/Linux Release 回归均加入该合成蒙版用例。NEF 提交的 Windows CI 37648837122 已成功；最终联合提交的 CI、Release 和公开下载检查待补充。
 - 未读取用户报错中的共享照片，不能把合成回归写成该原图实测；私人素材和原有未跟踪 demo 文件均不纳入本次提交。
+
+## v0.4.0-rc.3 流程文字与小窗口布局（2026-10-08）
+
+用户要求移除现有 rc.2 Release，修复缩小窗口、压缩画幅或展开日志时流程文字被挤压的问题后再发布；允许改用新版本号。已撤下 rc.2 Release，原标签保留，新版本为 0.4.0rc3。
+
+- 修复前在 1100×720 并展开日志时，流程编号及说明的控件高度降为 0。流程面板增加可滚动内容区，字号按可用宽高调整，正文保留至少 12px、说明至少 11px（Qt 逻辑像素）；按真实宽度计算换行后的最低内容高度，空间不足时滚动，不继续压缩流程块。放大后字号恢复。
+- 新增 GUI 回归覆盖最小窗口、展开/收起日志、拖动分隔条、反复缩小/放大、全部说明与步骤控件可滚动访问、勾选状态不变。100% 和 150% 缩放均通过；本地空白主窗口截图检查无压缩文字。未宣称逐系统缩放比例完成人工验证。
+- 全量 unit/gui/integration（要求真实与视觉素材）：201 passed、2 Windows 专属 skipped；最终布局与启动专项 4 passed。Ruff、格式（92 文件）和 mypy（41 源文件）通过。日志位于忽略的 build/rc3-layout-*。
+- 冻结自测增加 workflow_layout，共 18 类，验证缩小并展开日志时文字不截断、放大后恢复；Windows/Linux 构建与公开 Windows 下载后自测沿用同一清单。原 JPG、NEF 写入及原片保护范围保持。
+- 本地 Linux 程序编译、目录程序自检、DEB 构建及解包后的 18 类自检通过，DEB 版本为 0.4.0~rc3。
+- 私人素材及原有四个未跟踪 Linux demo 文件不纳入提交。Windows CI、正式 Release 和公开下载验收完成后在本节追加证据。

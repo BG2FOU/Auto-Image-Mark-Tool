@@ -2,7 +2,7 @@
 
 ## 1. 选择流程与照片
 
-从 [v0.4.0-rc.2 Release](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.2) 下载 Windows EXE/ZIP 或 Linux DEB，启动 `AutoImageMarkTool.exe` / `auto-image-mark-tool`；源码运行使用 `python -m aim_tool`。启动后默认选择“坐标”，仅勾选“写入坐标”；可切换“水印”或“坐标＋水印”。步骤顺序固定为坐标在前、水印在后；至少启用一个处理步骤。可保存/载入本地流程预设，NEF 仅可选择“坐标”，如批次中有勾选 NEF，启用水印会阻止整批处理；可取消勾选 NEF 后处理 JPG。
+从 [v0.4.0-rc.3 Release](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.3) 下载 Windows EXE/ZIP 或 Linux DEB，启动 `AutoImageMarkTool.exe` / `auto-image-mark-tool`；源码运行使用 `python -m aim_tool`。启动后默认选择“坐标”，仅勾选“写入坐标”；可切换“水印”或“坐标＋水印”。步骤顺序固定为坐标在前、水印在后；至少启用一个处理步骤。可保存/载入本地流程预设，NEF 仅可选择“坐标”，如批次中有勾选 NEF，启用水印会阻止整批处理；可取消勾选 NEF 后处理 JPG。
 
 点击添加照片/文件夹，或将 JPG/JPEG/NEF 拖入窗口。复选框控制处理范围；当前选中行控制右侧预览。可以搜索和排序；批量应用按照片稳定 ID 工作，排序不会改变对应关系。可移除选中行，不会删除原文件。
 
@@ -71,3 +71,7 @@ Windows 首次实机验证可按 [验收记录中的桌面检查表](acceptance.
 ## 8. v0.4.0-rc.2 Nikon NEF 坐标兼容更新
 
 主页面取消固定机型/位深/尺寸/压缩模式白名单，面向 Nikon 相机 NEF 逐文件校验；不宣称所有型号均已实测。此次真实样片验证覆盖 Nikon Z5 和 Z6 III，另有合成 Nikon TIFF/NEF 容器的端到端写入和冻结测试。主图及所有可提取预览 SHA256、拍摄/MakerNotes/XMP/IPTC/ICC 信息必须保留；无法识别容器、无法计算主图哈希、新增验证异常或读回不符时，不提交成品。其他品牌 RAW 暂不开放。发布证据见 [验收记录](acceptance.md)。
+
+## 9. 小窗口下的流程操作
+
+缩小窗口、拖动分隔条或展开作业日志时，处理流程面板会适度缩小文字并自动换行。空间仍不足时出现垂直滚动条，滚动可访问所有步骤、导出说明和保存预设按钮；放大窗口后恢复正常字号。步骤勾选不受布局变化影响。

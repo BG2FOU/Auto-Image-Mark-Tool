@@ -15,7 +15,7 @@ from fontTools.pens.ttGlyphPen import TTGlyphPen  # type: ignore[import-untyped]
 from openpyxl import Workbook  # type: ignore[import-untyped]
 from PIL import Image, ImageCms
 from PySide6.QtCore import QEventLoop, QTimer
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLabel
 
 from aim_tool import __version__
 from aim_tool.domain import BatchJob, ItemStatus, LocationPreset, PhotoItem
@@ -127,6 +127,36 @@ def run_self_test(report: Path) -> int:
                     and window.workflow.location.isChecked()
                     and not window.workflow.watermark.isChecked(),
                     "Default workflow is not coordinates only",
+                )
+                window.resize(1100, 720)
+                window.log.show()
+                panel = window.workflow
+                _wait(
+                    lambda: (
+                        panel.location.font().pixelSize() == 12
+                        and panel.scroll_area.verticalScrollBar().maximum() > 0
+                    ),
+                    timeout=5,
+                )
+                for label in panel.content.findChildren(QLabel):
+                    _check(
+                        label.height() >= label.heightForWidth(label.width())
+                        and label.font().pixelSize() >= 11,
+                        "Workflow text is clipped in a small window with the log open",
+                    )
+                _check(
+                    panel.location.height() >= panel.location.minimumSizeHint().height()
+                    and panel.watermark.height() >= panel.watermark.minimumSizeHint().height(),
+                    "Workflow controls are compressed",
+                )
+                window.log.hide()
+                window.resize(1440, 1000)
+                _wait(
+                    lambda: (
+                        panel.location.font().pixelSize() == 13
+                        and panel.scroll_area.verticalScrollBar().maximum() == 0
+                    ),
+                    timeout=5,
                 )
                 window.location_panel.save_location(
                     LocationPreset("Smoke", -24.2, 118.4, altitude=125.5)
@@ -281,6 +311,7 @@ def run_self_test(report: Path) -> int:
                 checks=[
                     "gui",
                     "default_location",
+                    "workflow_layout",
                     "nef_gps",
                     "settings",
                     "locations",

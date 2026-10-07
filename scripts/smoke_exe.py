@@ -53,6 +53,7 @@ def main() -> int:
             "checks": [
                 "gui",
                 "default_location",
+                "workflow_layout",
                 "nef_gps",
                 "settings",
                 "locations",
