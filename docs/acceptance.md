@@ -409,3 +409,13 @@ EXE 未签名；特殊 Windows 临时路径仍可能要求可写 ASCII TEMP。�
 本轮修改：GPS/NEF 服务与 location 步骤、默认流程及冻结自测、对应单元/GUI/集成测试、私有素材忽略/清单、版本与 release 组装/校验/smoke/CI 审计，以及 README、计划、使用/构建说明、新 NEF 兼容说明和 rc.2 发布说明。
 
 尚未覆盖全部 Nikon 型号和编码的真实样片，Windows 资源管理器 System.GPS.Date 显示未逐相机人工核验；EXE 仍未签名。提交后的 Windows CI、正式 Release 和公开下载验收尚待完成，完成后在本节追加证据。
+
+### JPG Adobe 蒙版警告修补（2026-10-08）
+
+用户要求单独提交 JPG 修补，并与 NEF 坐标修补一起发布 rc.2。协调消息送达前 NEF 已提交并推送为 e5d3fb7，保留该历史；JPG 修补另作独立提交，统一标签与发布等待最终提交验证通过。
+
+- 只在元数据白名单不请求 Camera Raw/XMP 全量数据时，允许精确匹配的 GestureDabs 1000 条提取上限警告。保留提取上限，不全局启用 -m；非零退出、其他警告、混合警告及请求蒙版数据时的截断仍拒绝输出。
+- 新增合成 JPG 的 1001 条蒙版笔刷用例，真实 ExifTool 重现旧失败并验证修补成功；核对原片 SHA256、GPS/海拔、拍摄时间、机型、版权、像素与 ICC。测试无需私人原片或 Adobe 数据。
+- 本地 unit、GUI、ExifTool、metadata、pipeline 及新蒙版回归共 183 passed、2 Windows 专属 skipped、1 visual deselected；日志位于忽略的 build/rc04-jpg-warning-regression.log。Ruff、格式（91 文件）、mypy（41 源文件）和源版本检查通过。
+- Windows CI 与 Windows/Linux Release 回归均加入该合成蒙版用例。NEF 提交的 Windows CI 37648837122 已成功；最终联合提交的 CI、Release 和公开下载检查待补充。
+- 未读取用户报错中的共享照片，不能把合成回归写成该原图实测；私人素材和原有未跟踪 demo 文件均不纳入本次提交。

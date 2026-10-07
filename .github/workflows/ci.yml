@@ -63,4 +63,4 @@ jobs:
           python -m pytest tests/unit -q
           python -m pytest tests/gui --require-real-assets -q
       - name: Verify real JPG metadata and watermark pipelines
-        run: python -m pytest tests/integration/test_metadata.py tests/integration/test_pipeline.py -m 'not visual' --require-real-assets -q
+        run: python -m pytest tests/integration/test_metadata.py tests/integration/test_crs_mask_metadata.py tests/integration/test_pipeline.py -m 'not visual' --require-real-assets -q

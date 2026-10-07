@@ -81,7 +81,7 @@ jobs:
           .venv/Scripts/python.exe -m mypy src/aim_tool
           .venv/Scripts/python.exe -m pytest tests/unit -q
           .venv/Scripts/python.exe -m pytest tests/gui --require-real-assets -v
-          .venv/Scripts/python.exe -m pytest tests/integration/test_metadata.py tests/integration/test_pipeline.py -m 'not visual' --require-real-assets -q
+          .venv/Scripts/python.exe -m pytest tests/integration/test_metadata.py tests/integration/test_crs_mask_metadata.py tests/integration/test_pipeline.py -m 'not visual' --require-real-assets -q
       - name: Build and smoke directory application
         shell: pwsh
         run: .\scripts\build.ps1 -Mode onedir
@@ -180,7 +180,7 @@ jobs:
         run: |
           .venv/bin/python -m pytest tests/unit -q
           .venv/bin/python -m pytest tests/gui --require-real-assets -v
-          .venv/bin/python -m pytest tests/integration/test_metadata.py tests/integration/test_pipeline.py -m 'not visual' --require-real-assets -q
+          .venv/bin/python -m pytest tests/integration/test_metadata.py tests/integration/test_crs_mask_metadata.py tests/integration/test_pipeline.py -m 'not visual' --require-real-assets -q
       - name: Build and smoke DEB and extracted application
         run: .venv/bin/python scripts/build_deb.py
       - name: Audit and stage public artifacts

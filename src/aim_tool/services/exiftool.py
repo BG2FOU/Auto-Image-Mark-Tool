@@ -221,6 +221,7 @@ class ExifTool:
         *arguments: str,
         argfile_input: str | None = None,
         reject_warnings: bool = False,
+        ignore_crs_mask_limit: bool = False,
     ) -> str:
         command = (
             ["perl", str(self.executable), *arguments]
@@ -259,7 +260,22 @@ class ExifTool:
             raise ExifToolError(
                 f"ExifTool exited {completed.returncode}: {completed.stderr.strip()}"
             )
-        if reject_warnings and completed.stderr.strip():
+        warnings = completed.stderr.strip().splitlines()
+        if ignore_crs_mask_limit:
+            # This unused Camera Raw brush list is not transferred by the whitelist.
+            # Keep the extraction limit; do not globally enable IgnoreMinorErrors.
+            warnings = [
+                line
+                for line in warnings
+                if re.fullmatch(
+                    r"Warning: \[Minor\] Extracted only 1000 "
+                    r"crs:MaskGroupBasedCorrectionsCorrectionMasksGestureDabs items\. "
+                    r"Ignore minor errors to extract all - .+",
+                    line,
+                )
+                is None
+            ]
+        if reject_warnings and warnings:
             raise ExifToolError(f"ExifTool metadata warning: {completed.stderr.strip()}")
         return completed.stdout
 
@@ -430,4 +446,8 @@ class ExifTool:
             "-",
             argfile_input="\n".join(arguments) + "\n",
             reject_warnings=True,
+            ignore_crs_mask_limit=all(
+                tag.partition(":")[0].lower() not in {"xmp", "xmp-crs", "crs", "all"}
+                for tag in tags
+            ),
         )
