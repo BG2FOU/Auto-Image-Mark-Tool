@@ -40,6 +40,13 @@
       "camera_model": "NIKON Z 5",
       "sha256": "1b8bdf25ed058a200c7b52c48865f02c274a6631d8765c45806dbc42ea31fd58",
       "distribution": "local_only"
+    },
+    {
+      "path": "data/DSC_0038.NEF",
+      "role": "local_gps_reference_nef",
+      "camera_model": "NIKON Z6_3",
+      "sha256": "aa6cf6a3285a424357e90dfe22fd092e0a1a34bdb20754557c1f05842ae4cb05",
+      "distribution": "local_only"
     }
   ]
 }

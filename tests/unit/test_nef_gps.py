@@ -1,76 +1,49 @@
-"""NEF preservation checks reject unknown encodings and changed payloads."""
+"""EXIF capture time supplies the NEF GPS date without file-time fallbacks."""
 
-from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
-from aim_tool.services.exiftool import ExifTool
-from aim_tool.services.nef_gps import PROFILE, RANGES, fingerprint_nef, require_tested_nef
+from aim_tool.services.exiftool import ExifToolError, _gps_capture_timestamp
 
 
-class MetadataTool:
-    def __init__(self, values: dict[str, Any]) -> None:
-        self.values = values
-
-    def metadata(self, path: Path, *tags: str) -> dict[str, Any]:
-        return {"SourceFile": str(path), **self.values}
-
-
-def _metadata() -> dict[str, Any]:
-    values: dict[str, Any] = {**PROFILE, "Nikon:ShutterCount": 42}
-    for index, (offset, length) in enumerate(RANGES):
-        values[offset] = index * 8
-        values[length] = 8
-    return values
-
-
-def test_nef_fingerprint_allows_relocation_but_detects_payload_and_makernote_changes(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    ("original", "offset", "subsecond", "expected"),
+    (
+        ("2026:01:01 04:43:20", "+08:00", 45, ("2025:12:31", "20:43:20.45")),
+        ("2026:12:31 23:59:59", "-03:30", "007", ("2027:01:01", "03:29:59.007")),
+        ("2026:05:27 04:43:20", None, "", ("2026:05:27", "04:43:20")),
+        ("2026:05:27 04:43:20", "+00:00", 0, ("2026:05:27", "04:43:20")),
+    ),
+)
+def test_gps_date_uses_capture_time_and_its_offset(
+    original: str, offset: str | None, subsecond: str | int, expected: tuple[str, str]
 ) -> None:
-    original = tmp_path / "a.NEF"
-    original.write_bytes(bytes(range(8 * len(RANGES))))
-    source_values = _metadata()
-    tool = cast(ExifTool, MetadataTool(source_values))
-    before = fingerprint_nef(tool, original)
-    relocated = tmp_path / "b.NEF"
-    relocated.write_bytes(b"padding!" + original.read_bytes())
-    moved = dict(source_values)
-    for offset, _ in RANGES:
-        moved[offset] += 8
-    moved_tool = cast(ExifTool, MetadataTool(moved))
-    assert fingerprint_nef(moved_tool, relocated) == before
-    for offset, _ in RANGES:
-        with relocated.open("r+b") as payload:
-            payload.seek(moved[offset])
-            payload.write(b"\xff")
-        assert fingerprint_nef(moved_tool, relocated) != before
-        relocated.write_bytes(b"padding!" + original.read_bytes())
-    moved["Nikon:ShutterCount"] = 43
-    assert fingerprint_nef(moved_tool, relocated) != before
+    values: dict[str, Any] = {
+        "ExifIFD:DateTimeOriginal": original,
+        "ExifIFD:SubSecTimeOriginal": subsecond,
+    }
+    if offset is not None:
+        values["ExifIFD:OffsetTimeOriginal"] = offset
+    assert _gps_capture_timestamp(values) == expected
+
+
+def test_missing_capture_time_does_not_use_create_date_or_file_time() -> None:
+    assert _gps_capture_timestamp({"ExifIFD:CreateDate": "2026:05:27 04:43:20"}) is None
 
 
 @pytest.mark.parametrize(
     ("tag", "value"),
-    (("IFD0:Model", "NIKON Z 6"), ("Nikon:NEFCompression", 1), ("SubIFD1:BitsPerSample", 12)),
+    (
+        ("DateTimeOriginal", "2026:02:30 12:00:00"),
+        ("DateTimeOriginal", 2026),
+        ("OffsetTimeOriginal", "+24:00"),
+        ("OffsetTimeOriginal", "+08:60"),
+        ("OffsetTimeOriginal", "invalid"),
+        ("SubSecTimeOriginal", "invalid"),
+    ),
 )
-def test_nef_unknown_camera_or_encoding_is_blocked(tag: str, value: Any) -> None:
-    values = _metadata()
-    values[tag] = value
-    with pytest.raises(ValueError, match="verified Nikon Z 5"):
-        require_tested_nef(cast(ExifTool, MetadataTool(values)), Path("a.NEF"))
-
-
-@pytest.mark.parametrize(
-    "offset,length", ((-1, 8), (0, 0), (8 * len(RANGES) - 2, 8), (None, 8), (0, True))
-)
-def test_nef_invalid_or_missing_payload_range_is_blocked(
-    tmp_path: Path, offset: Any, length: Any
-) -> None:
-    source = tmp_path / "a.NEF"
-    source.write_bytes(bytes(range(8 * len(RANGES))))
-    values = _metadata()
-    values[RANGES[0][0]] = offset
-    values[RANGES[0][1]] = length
-    with pytest.raises(ValueError, match="Invalid NEF payload range"):
-        fingerprint_nef(cast(ExifTool, MetadataTool(values)), source)
+def test_invalid_capture_time_is_rejected(tag: str, value: Any) -> None:
+    values = {"ExifIFD:DateTimeOriginal": "2026:05:27 04:43:20", f"ExifIFD:{tag}": value}
+    with pytest.raises(ExifToolError, match="Invalid EXIF capture time"):
+        _gps_capture_timestamp(values)

@@ -48,7 +48,7 @@ jobs:
           assert not any(
               token in name
               for name in names
-              for token in ("NAME.png", "TrajanPro", "FangZheng", "DSC_0168")
+              for token in ("NAME.png", "TrajanPro", "FangZheng", "DSC_0168", "DSC_0038")
           )
           PYCODE
       - name: Verify pinned ExifTool

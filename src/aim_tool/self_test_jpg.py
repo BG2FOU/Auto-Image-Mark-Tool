@@ -18,14 +18,17 @@ from PySide6.QtCore import QEventLoop, QTimer
 from PySide6.QtWidgets import QApplication
 
 from aim_tool import __version__
-from aim_tool.domain import ItemStatus, LocationPreset
+from aim_tool.domain import BatchJob, ItemStatus, LocationPreset, PhotoItem
 from aim_tool.services.exiftool import ExifTool
-from aim_tool.services.nef_gps import require_tested_nef
+from aim_tool.services.nef_gps import fingerprint_nef
 from aim_tool.services.storage import ConfigStore, WatermarkSettings, WatermarkSettingsStore
 from aim_tool.services.table_import import read_table
 from aim_tool.services.watermark import WatermarkResources
 from aim_tool.ui.coordinate_converter import CoordinateConverterDialog
 from aim_tool.ui.main_window import MainWindow
+from aim_tool.workflow.engine import build_plan, run_plan
+from aim_tool.workflow.registry import StepRegistry, preset
+from aim_tool.workflow.steps import ExportStep, LocationStep
 
 
 def _resources(root: Path) -> WatermarkResources:
@@ -119,6 +122,12 @@ def run_self_test(report: Path) -> int:
                 window.show()
                 application.processEvents()
                 _check(window.isVisible(), "JPG window did not open")
+                _check(
+                    window.workflow.presets.currentData() == "location"
+                    and window.workflow.location.isChecked()
+                    and not window.workflow.watermark.isChecked(),
+                    "Default workflow is not coordinates only",
+                )
                 window.location_panel.save_location(
                     LocationPreset("Smoke", -24.2, 118.4, altitude=125.5)
                 )
@@ -203,11 +212,48 @@ def run_self_test(report: Path) -> int:
                 invalid_nef = root / "unsupported.NEF"
                 invalid_nef.write_bytes(source.read_bytes())
                 try:
-                    require_tested_nef(tool, invalid_nef)
+                    fingerprint_nef(tool, invalid_nef)
                 except ValueError:
                     pass
                 else:
-                    raise RuntimeError("Unsupported NEF encoding was accepted")
+                    raise RuntimeError("Renamed JPEG was accepted as RAW")
+                nef = root / "synthetic.NEF"
+                Image.new("RGB", (30, 20), (12, 34, 56)).save(nef, format="TIFF")
+                tool._run_for_path(
+                    nef,
+                    "-overwrite_original",
+                    "-IFD0:Make=NIKON CORPORATION",
+                    "-IFD0:Model=NIKON ANY MODEL",
+                    "-ExifIFD:DateTimeOriginal=2026:01:01 04:43:20",
+                    "-ExifIFD:OffsetTimeOriginal=+08:00",
+                )
+                nef_source_hash = sha256(nef.read_bytes()).digest()
+                nef_before = fingerprint_nef(tool, nef)
+                registry = StepRegistry()
+                registry.register(LocationStep(tool, allow_nef_after_viewer_check=True))
+                registry.register(ExportStep())
+                (nef_result,) = run_plan(
+                    build_plan(
+                        BatchJob(
+                            (PhotoItem(nef, root, coordinates=(1, 2)),),
+                            preset("location_only"),
+                            root / "raw-output",
+                        ),
+                        registry,
+                    )
+                )
+                _check(nef_result.output is not None, nef_result.error or "NEF output missing")
+                nef_output = root / "raw-output/synthetic.NEF"
+                gps_tags = tool.metadata(nef_output, "-GPS:all")
+                _check(
+                    fingerprint_nef(tool, nef_output).preserved_from(nef_before)
+                    and sha256(nef.read_bytes()).digest() == nef_source_hash
+                    and gps_tags.get("GPS:GPSSatellites") == "00"
+                    and gps_tags.get("GPS:GPSMapDatum") == "WGS-84"
+                    and gps_tags.get("GPS:GPSDateStamp") == "2025:12:31"
+                    and gps_tags.get("GPS:GPSTimeStamp") == "20:43:20",
+                    "RAW GPS metadata or preservation failed",
+                )
                 window.add_photos((invalid_nef,))
                 window.table.selectRow(window.model.rowCount() - 1)
                 window._request_preview()
@@ -234,6 +280,8 @@ def run_self_test(report: Path) -> int:
                 exiftool="13.59",
                 checks=[
                     "gui",
+                    "default_location",
+                    "nef_gps",
                     "settings",
                     "locations",
                     "preview",

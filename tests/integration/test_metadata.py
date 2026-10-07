@@ -12,9 +12,14 @@ from pathlib import Path
 import pytest
 from PIL import Image, ImageCms
 
+from aim_tool.domain import BatchJob, PhotoItem
 from aim_tool.services.exiftool import ExifTool, ExifToolError
 from aim_tool.services.images import prepare_jpeg
 from aim_tool.services.metadata import preserve_watermark_metadata
+from aim_tool.services.nef_gps import fingerprint_nef
+from aim_tool.workflow.engine import build_plan, run_plan
+from aim_tool.workflow.registry import StepRegistry, preset
+from aim_tool.workflow.steps import ExportStep, LocationStep
 
 
 @pytest.fixture
@@ -98,6 +103,70 @@ def test_partial_gps_is_rejected_before_transfer(tmp_path: Path, tool: ExifTool)
     with pytest.raises(ExifToolError, match="incomplete"):
         preserve_watermark_metadata(tool, source, target)
     assert target.read_bytes() == before
+
+
+@pytest.mark.parametrize("suffix", (".NEF", ".nef"))
+def test_raw_gps_adapter_writes_satellites_datum_and_capture_time(
+    tmp_path: Path, tool: ExifTool, suffix: str
+) -> None:
+    # Synthetic TIFF exercises the EXIF writer; it is not a supported camera fixture.
+    source = tmp_path / ("中文 坐标" + suffix)
+    Image.new("RGB", (30, 20)).save(source, format="TIFF")
+    tool._run_for_path(
+        source,
+        "-overwrite_original",
+        "-ExifIFD:DateTimeOriginal=2026:01:01 04:43:20",
+        "-ExifIFD:OffsetTimeOriginal=+08:00",
+        "-ExifIFD:SubSecTimeOriginal=007",
+        "-GPS:GPSDateStamp=2020:01:01",
+        "-GPS:GPSTimeStamp=01:02:03",
+        "-GPS:GPSSatellites=12",
+        "-GPS:GPSImgDirection=120",
+    )
+    tool.write_gps(source, -24.123456, 118.654321, -12.5)
+    values = tool.metadata(source, "-GPS:all", "-ExifIFD:DateTimeOriginal")
+    assert values["GPS:GPSSatellites"] == "00"
+    assert values["GPS:GPSMapDatum"] == "WGS-84"
+    assert values["GPS:GPSDateStamp"] == "2025:12:31"
+    assert values["GPS:GPSTimeStamp"] == "20:43:20.007"
+    assert values["ExifIFD:DateTimeOriginal"] == "2026:01:01 04:43:20"
+    assert "GPS:GPSImgDirection" not in values
+    gps = tool.read_gps(source)
+    assert gps is not None and gps.altitude == -12.5
+
+
+def test_synthetic_nef_location_batch_preserves_pixels_without_camera_whitelist(
+    tmp_path: Path, tool: ExifTool
+) -> None:
+    source = tmp_path / "camera.NEF"
+    Image.new("RGB", (30, 20), (12, 34, 56)).save(source, format="TIFF")
+    tool._run_for_path(
+        source,
+        "-overwrite_original",
+        "-IFD0:Make=NIKON CORPORATION",
+        "-IFD0:Model=NIKON ANY MODEL",
+        "-ExifIFD:DateTimeOriginal=2026:01:01 04:43:20",
+        "-ExifIFD:OffsetTimeOriginal=+08:00",
+    )
+    original = sha256(source.read_bytes()).digest()
+    before = fingerprint_nef(tool, source)
+    registry = StepRegistry()
+    registry.register(LocationStep(tool, allow_nef_after_viewer_check=True))
+    registry.register(ExportStep())
+    (result,) = run_plan(
+        build_plan(
+            BatchJob(
+                (PhotoItem(source, source.parent, coordinates=(1, 2)),),
+                preset("location_only"),
+                tmp_path / "output",
+            ),
+            registry,
+        )
+    )
+    assert result.output == tmp_path / "output/camera.NEF", result.error
+    assert fingerprint_nef(tool, result.output).preserved_from(before)
+    assert sha256(source.read_bytes()).digest() == original
+    assert tool.metadata(result.output, "-GPS:GPSDateStamp")["GPS:GPSDateStamp"] == "2025:12:31"
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows bundled Perl runtime")

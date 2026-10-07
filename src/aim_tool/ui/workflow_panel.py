@@ -42,7 +42,7 @@ class WorkflowPanel(QWidget):
         self.presets = QComboBox()
         self.location = QCheckBox("写入坐标")
         self.watermark = QCheckBox("添加水印")
-        self.watermark.setChecked(True)
+        self.location.setChecked(True)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 18, 18, 18)
         layout.addWidget(heading)
@@ -89,7 +89,7 @@ class WorkflowPanel(QWidget):
     def _refresh(self) -> None:
         self.presets.blockSignals(True)
         self.presets.clear()
-        for label, key in (("水印", "watermark"), ("坐标", "location"), ("坐标 + 水印", "both")):
+        for label, key in (("坐标", "location"), ("水印", "watermark"), ("坐标 + 水印", "both")):
             self.presets.addItem(label, key)
         for name in self._saved:
             self.presets.addItem(name, "saved:" + name)

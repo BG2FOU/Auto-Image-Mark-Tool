@@ -10,7 +10,7 @@ import subprocess
 import zipfile
 from pathlib import Path
 
-from check_release import ROOT, digest, release_tag
+from check_release import RAW_SCOPE, ROOT, digest, release_tag
 
 
 def main() -> int:
@@ -63,11 +63,14 @@ def main() -> int:
                     "gps_watermark",
                     "xlsx",
                     "nef_scope",
+                    "nef_gps",
+                    "default_location",
                     "altitude",
                     "coordinate_conversion",
                 ],
                 "private_assets": "excluded",
-                "nef": "gps_only_nikon_z5_14bit_lossless",
+                "nef": "gps_only_with_integrity_checks",
+                "raw": RAW_SCOPE,
                 "code_signed": False,
             },
             indent=2,

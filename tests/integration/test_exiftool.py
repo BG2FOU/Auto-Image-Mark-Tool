@@ -124,10 +124,11 @@ def test_nikon_nef_batch_remains_blocked_without_viewer_check(
 
 
 @pytest.mark.raw
+@pytest.mark.parametrize("sample", ("DSC_0168.NEF", "DSC_0038.NEF"))
 def test_nikon_nef_diagnostic_copy_preserves_raw_and_preview_pixels(
-    tmp_path: Path, tool: ExifTool, pytestconfig: pytest.Config
+    tmp_path: Path, tool: ExifTool, pytestconfig: pytest.Config, sample: str
 ) -> None:
-    source = _sample(ROOT / "data/DSC_0168.NEF", pytestconfig)
+    source = _sample(ROOT / "data" / sample, pytestconfig)
     candidate = tmp_path / source.name
     shutil.copy2(source, candidate)
     source_hash = sha256(source.read_bytes()).hexdigest()
@@ -137,8 +138,6 @@ def test_nikon_nef_diagnostic_copy_preserves_raw_and_preview_pixels(
     before_makernotes = tool.metadata(source, "-MakerNotes:all")
     before_makernotes.pop("SourceFile", None)
     before_makernotes.pop("PreviewIFD:PreviewImageStart", None)
-    before_validation = tool.metadata(source, "-validate", "-warning", "-error")
-    before_validation.pop("SourceFile", None)
 
     def fingerprint(path: Path) -> tuple[object, bytes, bytes]:
         with rawpy.imread(str(path)) as raw:
@@ -159,23 +158,24 @@ def test_nikon_nef_diagnostic_copy_preserves_raw_and_preview_pixels(
     after_makernotes.pop("SourceFile", None)
     # ExifTool may relocate the embedded preview; its decoded pixels are checked above.
     after_makernotes.pop("PreviewIFD:PreviewImageStart", None)
-    after_validation = tool.metadata(candidate, "-validate", "-warning", "-error")
-    after_validation.pop("SourceFile", None)
     assert before == after
     assert before_metadata == after_metadata
     assert before_makernotes == after_makernotes
-    assert before_validation == after_validation
+    from aim_tool.services.nef_gps import raw_diagnostics
+
+    assert raw_diagnostics(tool, candidate) <= raw_diagnostics(tool, source)
     assert sha256(source.read_bytes()).hexdigest() == source_hash
     # Independent Nikon viewer approval is still required before batch NEF output is enabled.
 
 
 @pytest.mark.raw
+@pytest.mark.parametrize("sample", ("DSC_0168.NEF", "DSC_0038.NEF"))
 def test_nikon_nef_transactional_batch_preserves_format_and_payloads(
-    tmp_path: Path, tool: ExifTool, pytestconfig: pytest.Config
+    tmp_path: Path, tool: ExifTool, pytestconfig: pytest.Config, sample: str
 ) -> None:
     from aim_tool.services.nef_gps import fingerprint_nef
 
-    source = _sample(ROOT / "data/DSC_0168.NEF", pytestconfig)
+    source = _sample(ROOT / "data" / sample, pytestconfig)
     source_hash = sha256(source.read_bytes()).digest()
     before = fingerprint_nef(tool, source)
     item = PhotoItem(source, source.parent, coordinates=(-24.123456, -118.654321), altitude=-12.5)
@@ -183,16 +183,26 @@ def test_nikon_nef_transactional_batch_preserves_format_and_payloads(
     (result,) = run_plan(
         build_plan(
             BatchJob((item,), preset("location_only"), output),
-            _registry(tool, allow_nef=True),
+            _registry(tool, clear_auxiliary=True, allow_nef=True),
         )
     )
     assert result.output == output / source.name, result.error
-    assert fingerprint_nef(tool, result.output) == before
+    assert fingerprint_nef(tool, result.output).preserved_from(before)
     gps = tool.read_gps(result.output)
     assert gps is not None
     assert abs(gps.latitude + 24.123456) < 1e-6
     assert abs(gps.longitude + 118.654321) < 1e-6
     assert gps.altitude == -12.5
+    values = tool.metadata(result.output, "-GPS:all")
+    assert values["GPS:GPSSatellites"] == "00"
+    assert values["GPS:GPSMapDatum"] == "WGS-84"
+    assert values["GPS:GPSVersionID"] == "2 3 0 0"
+    if sample == "DSC_0038.NEF":
+        assert values["GPS:GPSDateStamp"] == "2026:05:26"
+        assert values["GPS:GPSTimeStamp"] == "20:43:20.45"
+    else:
+        assert values["GPS:GPSDateStamp"] == "2026:09:13"
+        assert values["GPS:GPSTimeStamp"] == "04:57:36.28"
     assert sha256(source.read_bytes()).digest() == source_hash
     assert not list(output.glob("*.jpg"))
     assert not list(output.glob(".aim-*"))
@@ -225,21 +235,22 @@ def test_nef_changed_payload_is_not_committed(
         )
     )
     assert result.output is None
-    assert "NEF RAW, previews or camera metadata changed" in (result.error or "")
+    assert "RAW, previews or camera metadata changed" in (result.error or "")
     assert sha256(source.read_bytes()).digest() == original
     assert not list(output.iterdir())
 
 
 @pytest.mark.raw
+@pytest.mark.parametrize("sample", ("DSC_0168.NEF", "DSC_0038.NEF"))
 def test_gui_mixed_jpg_nef_gps_batch_without_conversion_or_watermark_assets(
-    qtbot, tmp_path: Path, tool: ExifTool, pytestconfig: pytest.Config
+    qtbot, tmp_path: Path, tool: ExifTool, pytestconfig: pytest.Config, sample: str
 ) -> None:
     from aim_tool.domain import ItemStatus
     from aim_tool.services.nef_gps import fingerprint_nef
     from aim_tool.services.storage import ConfigStore, WatermarkSettingsStore
     from aim_tool.ui.main_window import MainWindow
 
-    source = _sample(ROOT / "data/DSC_0168.NEF", pytestconfig)
+    source = _sample(ROOT / "data" / sample, pytestconfig)
     original = sha256(source.read_bytes()).digest()
     before = fingerprint_nef(tool, source)
     jpeg = tmp_path / "jpg/a.jpg"
@@ -253,7 +264,8 @@ def test_gui_mixed_jpg_nef_gps_batch_without_conversion_or_watermark_assets(
     qtbot.addWidget(window)
     window.show()
     try:
-        window.workflow.presets.setCurrentIndex(1)
+        assert window.workflow.presets.currentData() == "location"
+        window.clear_auxiliary.setChecked(sample == "DSC_0038.NEF")
         window.add_photos((source, jpeg))
         window.apply_coordinates(0, 0)
         output = tmp_path / "output"
@@ -263,7 +275,7 @@ def test_gui_mixed_jpg_nef_gps_batch_without_conversion_or_watermark_assets(
         assert len(window.results) == 2, window.log.toPlainText()
         assert all(result.status == ItemStatus.SUCCESS for result in window.results)
         assert {path.name for path in output.iterdir()} == {source.name, jpeg.name}
-        assert fingerprint_nef(tool, output / source.name) == before
+        assert fingerprint_nef(tool, output / source.name).preserved_from(before)
         assert sha256(source.read_bytes()).digest() == original
         with Image.open(jpeg) as first, Image.open(output / jpeg.name) as second:
             assert first.tobytes() == second.tobytes()

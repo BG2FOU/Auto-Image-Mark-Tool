@@ -393,3 +393,19 @@ EXE 未签名；特殊 Windows 临时路径仍可能要求可写 ASCII TEMP。�
 - `tests/unit/test_nef_gps.py`
 - `tests/unit/test_storage_output.py`
 - `tests/unit/test_table_import.py`
+
+## v0.4.0-rc.2 NEF GPS 修补与 Nikon 兼容（2026-10-08）
+
+用户提供正确 GPS NEF 示例并授权修补后提交和 Release，随后明确本次兼容范围为所有 Nikon 相机的 NEF。此前暂停在本范围内恢复，其他品牌 RAW 及 NEF 显影/水印均未扩展。
+
+- NEF 副本补齐卫星数 00、WGS-84 基准、GPSVersionID 2.3.0.0；GPS 日期/时间从 EXIF 拍摄时间及小数秒生成，有照片时区时转为 UTC，无时区则复制相机时钟值。缺失时不补造日期，非法时间拒绝写入。
+- 主页面默认仅勾选“写入坐标”。取消固定机型/位深/尺寸/压缩模式白名单，逐文件核对真实 NEF 容器、主图与全部可提取预览 SHA256、非 GPS EXIF/MakerNotes/XMP/IPTC/ICC 和新增验证异常，再独立读回 GPS；失败不提交成品。
+- 完整本地回归：186 passed、2 Windows 专属 skipped；真实 Nikon Z5 / Z6 III 的 RAW mosaic、解码预览、全部可提取预览、相机信息、GPS 字段、原片哈希和 JPG/NEF 混合 GUI 批次通过。破坏 RAW 会阻止成品提交，改后缀 JPEG 会被拒绝。
+- Ruff、格式、mypy、版本来源检查通过。版本已更新为 0.4.0rc2；本机 editable 元数据同步更新。冻结自测及 smoke_exe 预期清单同步增加到 17 类，包含默认坐标和合成 Nikon TIFF/NEF 容器写入。
+- 本地 Linux 程序、DEB 构建及解包后的 17 类冻结自测通过；固定工具仍为 Python 3.12.3 / PyInstaller 6.22.3 / ExifTool 13.59。本地发行资源审计通过，私人照片/字体/签名未打包；7 份清单资产 SHA256 不变，新 NEF 示例已加入 local_only 清单与忽略规则。
+- 示例的旧警告由 6 条降为 4 条，消除的是空 SubIFD 数据指针警告；RAW 和预览内容不变。校验允许旧警告被消除，拒绝新增警告或错误。
+- 本地 NEF 验证副本及日志位于忽略的 demo-output/nef-gps-rc2 和 build/rc04-nef-fix-*；4 个原有未跟踪 Linux demo 文件保持原状，不纳入提交。
+
+本轮修改：GPS/NEF 服务与 location 步骤、默认流程及冻结自测、对应单元/GUI/集成测试、私有素材忽略/清单、版本与 release 组装/校验/smoke/CI 审计，以及 README、计划、使用/构建说明、新 NEF 兼容说明和 rc.2 发布说明。
+
+尚未覆盖全部 Nikon 型号和编码的真实样片，Windows 资源管理器 System.GPS.Date 显示未逐相机人工核验；EXE 仍未签名。提交后的 Windows CI、正式 Release 和公开下载验收尚待完成，完成后在本节追加证据。

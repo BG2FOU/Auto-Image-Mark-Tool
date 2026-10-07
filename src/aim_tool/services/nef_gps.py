@@ -1,82 +1,111 @@
-"""Verify the tested NEF GPS profile and unchanged payloads without RAW decoding."""
+"""Verify Nikon NEF RAW contents and metadata across GPS edits without developing pixels."""
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from aim_tool.services.exiftool import ExifTool
 
-# Only the locally tested camera/encoding is eligible for independent viewer approval.
-PROFILE = {
-    "IFD0:Make": "NIKON CORPORATION",
-    "IFD0:Model": "NIKON Z 5",
-    "Nikon:NEFCompression": 3,
-    "SubIFD1:Compression": 34713,
-    "SubIFD1:BitsPerSample": 14,
-    "SubIFD1:ImageWidth": 6040,
-    "SubIFD1:ImageHeight": 4032,
-}
-RANGES = (
-    ("IFD0:StripOffsets", "IFD0:StripByteCounts"),
-    ("SubIFD1:StripOffsets", "SubIFD1:StripByteCounts"),
-    ("PreviewIFD:PreviewImageStart", "PreviewIFD:PreviewImageLength"),
-    ("SubIFD:JpgFromRawStart", "SubIFD:JpgFromRawLength"),
-    ("SubIFD2:OtherImageStart", "SubIFD2:OtherImageLength"),
+# These pointers may move when ExifTool rebuilds the container. Their referenced
+# image contents are checked by ImageDataHash and the extracted preview hashes.
+RELOCATABLE = frozenset(
+    {
+        "StripOffsets",
+        "TileOffsets",
+        "ThumbnailOffset",
+        "PreviewImageStart",
+        "JpgFromRawStart",
+        "OtherImageStart",
+        "PreviewTIFFStart",
+        "ThumbnailTIFFStart",
+        "PreviewImageOffset",
+        "MakerNoteOffset",
+        "RawImageOffset",
+        "RawImageStart",
+    }
 )
 
 
-def require_tested_nef(tool: ExifTool, path: Path) -> None:
-    metadata = tool.metadata(path, *(f"-{tag}" for tag in PROFILE))
-    if any(metadata.get(tag) != value for tag, value in PROFILE.items()):
-        raise ValueError("NEF GPS supports only the verified Nikon Z 5 14-bit lossless profile")
+def raw_diagnostics(tool: ExifTool, path: Path) -> frozenset[str]:
+    result = tool._run_for_path(path, "-validate", "-a", "-warning", "-error", "-s")
+    diagnostics = frozenset(
+        line.strip() for line in result.splitlines() if re.match(r"^(Warning|Error)\s*:", line)
+    )
+    if any(line.startswith("Error") for line in diagnostics):
+        raise ValueError("RAW metadata validation failed")
+    return diagnostics
 
 
 @dataclass(frozen=True)
 class NefFingerprint:
     metadata: dict[str, Any]
-    payloads: tuple[str, ...]
+    image_hash: str
+    previews: dict[str, str]
+    diagnostics: frozenset[str]
+
+    def preserved_from(self, before: NefFingerprint) -> bool:
+        return (
+            self.metadata == before.metadata
+            and self.image_hash == before.image_hash
+            and self.previews == before.previews
+            and self.diagnostics <= before.diagnostics
+        )
 
 
 def fingerprint_nef(tool: ExifTool, path: Path) -> NefFingerprint:
-    """Hash exact compressed RAW, thumbnail and preview bytes, allowing relocation."""
-    require_tested_nef(tool, path)
-    fields = (
-        *PROFILE,
-        *(tag for pair in RANGES for tag in pair),
-        "MakerNotes:all",
-        "ExifIFD:all",
-        "IFD0:Orientation",
-        "validate",
-        "warning",
-        "error",
+    """Fail closed if format identification or the main image hash is unavailable."""
+    metadata = tool.metadata(
+        path,
+        "-G1:4",
+        "-FileType",
+        "-EXIF:all",
+        "-MakerNotes:all",
+        "-XMP:all",
+        "-IPTC:all",
+        "-ICC_Profile:all",
+        "--GPS:all",
     )
-    metadata = tool.metadata(path, *(f"-{tag}" for tag in fields))
-    metadata.pop("SourceFile", None)
-    payloads = []
-    size = path.stat().st_size
-    with path.open("rb") as source:
-        for offset_tag, length_tag in RANGES:
-            offset = metadata.pop(offset_tag, None)
-            length = metadata.pop(length_tag, None)
-            if (
-                type(offset) is not int
-                or type(length) is not int
-                or offset < 0
-                or length <= 0
-                or offset + length > size
-            ):
-                raise ValueError(f"Invalid NEF payload range: {offset_tag}")
-            digest = hashlib.sha256()
-            source.seek(offset)
-            remaining = length
-            while remaining:
-                block = source.read(min(remaining, 1024 * 1024))
-                if not block:
-                    raise OSError("NEF payload changed during verification")
-                digest.update(block)
-                remaining -= len(block)
-            payloads.append(digest.hexdigest())
-    return NefFingerprint(metadata, tuple(payloads))
+    detected = metadata.get("File:FileType")
+    if detected != "NEF" or path.suffix.lower() != ".nef":
+        raise ValueError("Unsupported RAW container or filename does not match its format")
+    for key in tuple(metadata):
+        if key == "SourceFile" or key.split(":")[-1] in RELOCATABLE:
+            metadata.pop(key)
+    images = tool.metadata(
+        path,
+        "-G1:4",
+        "-b",
+        "-api",
+        "ImageHashType=SHA256",
+        "-ImageDataHash",
+        "-preview:all",
+    )
+    image_hash = images.pop("File:ImageDataHash", None)
+    if (
+        not isinstance(image_hash, str)
+        or re.fullmatch(r"[0-9a-f]{64}", image_hash) is None
+        or image_hash == hashlib.sha256(b"").hexdigest()
+    ):
+        raise ValueError("RAW image data cannot be verified; GPS output was blocked")
+    images.pop("SourceFile", None)
+    previews = {}
+    for key, value in images.items():
+        if not isinstance(value, str):
+            raise TypeError("RAW preview data cannot be verified")
+        data = (
+            base64.b64decode(value[7:], validate=True)
+            if value.startswith("base64:")
+            else value.encode()
+        )
+        previews[key] = hashlib.sha256(data).hexdigest()
+    return NefFingerprint(metadata, image_hash, previews, raw_diagnostics(tool, path))
+
+
+def require_tested_nef(tool: ExifTool, path: Path) -> None:
+    """Retain the legacy API using per-file verification instead of a model whitelist."""
+    fingerprint_nef(tool, path)

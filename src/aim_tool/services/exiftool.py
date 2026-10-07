@@ -11,6 +11,7 @@ import sys
 import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
 from typing import Any
@@ -25,6 +26,39 @@ _WINDOWS_SPAWN_LOCK = Lock()
 
 class ExifToolError(RuntimeError):
     """ExifTool is unavailable or returned an invalid result."""
+
+
+def _gps_capture_timestamp(values: Mapping[str, Any]) -> tuple[str, str] | None:
+    """Use EXIF capture time, converting its explicit offset to UTC for GPS."""
+    original = values.get("ExifIFD:DateTimeOriginal")
+    if original is None:
+        return None
+    try:
+        captured = datetime.strptime(original, "%Y:%m:%d %H:%M:%S").replace(tzinfo=UTC)
+        subsecond = values.get("ExifIFD:SubSecTimeOriginal", "")
+        if subsecond != "":
+            if type(subsecond) not in {str, int}:
+                raise ValueError("Invalid capture subsecond")
+            subsecond = str(subsecond)
+            if re.fullmatch(r"[0-9]+", subsecond) is None:
+                raise ValueError("Invalid capture subsecond")
+            captured = captured.replace(microsecond=int(subsecond[:6].ljust(6, "0")))
+        offset = values.get("ExifIFD:OffsetTimeOriginal")
+        if offset is not None:
+            if not isinstance(offset, str) or re.fullmatch(r"[+-]\d{2}:\d{2}", offset) is None:
+                raise ValueError("Invalid capture offset")
+            hours, minutes = int(offset[1:3]), int(offset[4:6])
+            if hours > 23 or minutes > 59:
+                raise ValueError("Invalid capture offset")
+            delta = timedelta(hours=hours, minutes=minutes) * (-1 if offset[0] == "-" else 1)
+            captured = captured.replace(tzinfo=timezone(delta)).astimezone(UTC)
+        # Without an EXIF offset, copy the camera clock without guessing a host timezone.
+        clock = captured.strftime("%H:%M:%S")
+        if captured.microsecond:
+            clock += f".{captured.microsecond:06d}".rstrip("0")
+        return captured.strftime("%Y:%m:%d"), clock
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ExifToolError("Invalid EXIF capture time for RAW GPS date") from error
 
 
 @dataclass(frozen=True)
@@ -320,10 +354,25 @@ class ExifTool:
     ) -> None:
         validate_coordinates(latitude, longitude)
         validate_altitude(altitude)
+        raw_tags: dict[str, str] = {}
+        if path.suffix.lower() == ".nef":
+            raw_tags = {"GPSSatellites": "00", "GPSMapDatum": "WGS-84"}
+            timestamp = _gps_capture_timestamp(
+                self.metadata(
+                    path,
+                    "-ExifIFD:DateTimeOriginal",
+                    "-ExifIFD:SubSecTimeOriginal",
+                    "-ExifIFD:OffsetTimeOriginal",
+                )
+            )
+            if timestamp is not None:
+                raw_tags.update(zip(("GPSDateStamp", "GPSTimeStamp"), timestamp, strict=True))
         args = (
             "-overwrite_original",
             "-P",
             "-GPS:all=",
+            *(("-GPS:GPSVersionID=2.3.0.0",) if raw_tags else ()),
+            *(f"-GPS:{tag}={value}" for tag, value in raw_tags.items()),
             f"-GPS:GPSLatitude={abs(latitude):.12f}",
             f"-GPS:GPSLatitudeRef={'S' if latitude < 0 else 'N'}",
             f"-GPS:GPSLongitude={abs(longitude):.12f}",
@@ -339,6 +388,10 @@ class ExifTool:
             or abs(readback.altitude - altitude) > 1e-4
         ):
             raise ExifToolError("GPS readback differs from requested coordinates")
+        if raw_tags:
+            actual = self.metadata(path, *(f"-GPS:{tag}" for tag in raw_tags))
+            if any(actual.get(f"GPS:{tag}") != value for tag, value in raw_tags.items()):
+                raise ExifToolError("RAW GPS date, satellites or datum readback differs")
 
     def copy_tags(
         self,

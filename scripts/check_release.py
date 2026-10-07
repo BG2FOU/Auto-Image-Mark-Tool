@@ -11,6 +11,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+RAW_SCOPE = "gps_only_nikon_nef_with_integrity_checks"
 
 
 def release_tag() -> str:
@@ -85,7 +86,8 @@ def main() -> int:
             raise ValueError("Build toolchain does not match pinned versions")
         if (
             info["private_assets"] != "excluded"
-            or info["nef"] != "gps_only_nikon_z5_14bit_lossless"
+            or info["raw"] != RAW_SCOPE
+            or info["nef"] != "gps_only_with_integrity_checks"
         ):
             raise ValueError("Release scope does not match the verified GPS/watermark edition")
     print(tag)

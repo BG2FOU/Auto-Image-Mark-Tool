@@ -181,6 +181,7 @@ cython_debug/
 .cursorindexingignore
 
 # Local-only user photos, signature, and licensed fonts
+/data/DSC_0038.NEF
 /data/DSC_0168.NEF
 /data/DSC_0168.jpg
 /data/DSC_0168_marked.jpg

@@ -52,6 +52,8 @@ def main() -> int:
             "exiftool": "13.59",
             "checks": [
                 "gui",
+                "default_location",
+                "nef_gps",
                 "settings",
                 "locations",
                 "preview",

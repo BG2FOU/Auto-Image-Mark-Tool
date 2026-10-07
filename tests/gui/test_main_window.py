@@ -110,7 +110,10 @@ def test_gps_only_works_without_watermark_assets_or_capture_date(
     original_pixels = Image.open(source).tobytes()
     window = _window(qtbot, tmp_path, missing)
     try:
-        window.workflow.presets.setCurrentIndex(1)
+        assert window.workflow.presets.currentData() == "location"
+        assert window.workflow.location.isChecked()
+        assert not window.workflow.watermark.isChecked()
+        assert window.location_panel.isVisible()
         window.add_photos((source,))
         window.apply_coordinates(0, 0)
         window.output_edit.setText(str(tmp_path / "out"))
@@ -134,6 +137,7 @@ def test_bad_row_blocks_whole_batch_and_identifies_photo(
         _photo(path)
     window = _window(qtbot, tmp_path, synthetic_watermark_resources)
     try:
+        window.workflow.presets.setCurrentIndex(window.workflow.presets.findData("watermark"))
         window.add_photos((first, second))
         window.model.setData(window.model.index(0, window.model.SUBJECT), "B-1356")
         window.output_edit.setText(str(tmp_path / "out"))
@@ -165,6 +169,7 @@ def test_close_waits_for_cancelled_preflight_without_output(
 
     monkeypatch.setattr(WatermarkStep, "validate", slow_validate)
     window = _window(qtbot, tmp_path, synthetic_watermark_resources)
+    window.workflow.presets.setCurrentIndex(window.workflow.presets.findData("watermark"))
     window.add_photos((source,))
     window.output_edit.setText(str(tmp_path / "out"))
     window.start()
@@ -186,6 +191,7 @@ def test_nef_is_imported_but_watermark_is_blocked(
     source = tmp_path / "a.NEF"
     source.write_bytes(b"do not process")
     window = _window(qtbot, tmp_path, synthetic_watermark_resources)
+    window.workflow.presets.setCurrentIndex(window.workflow.presets.findData("watermark"))
     window.add_photos((source,))
     assert window.model.rowCount() == 1
     window._request_preview()
