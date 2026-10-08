@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
@@ -29,11 +30,20 @@ class BatchWorker(QThread):
         self.cancelled = Event()
 
     def run(self) -> None:
-        results = run_plan(
-            self.plan,
-            cancelled=self.cancelled,
-            progress=lambda photo, message: self.progress.emit(str(photo.id), message),
-        )
+        tools = {
+            tool
+            for item in self.plan.items
+            for step in item.steps
+            if isinstance(tool := getattr(step.implementation, "tool", None), ExifTool)
+        }
+        with ExitStack() as sessions:
+            for tool in tools:
+                sessions.enter_context(tool)
+            results = run_plan(
+                self.plan,
+                cancelled=self.cancelled,
+                progress=lambda photo, message: self.progress.emit(str(photo.id), message),
+            )
         self.completed.emit(results)
 
 
@@ -48,24 +58,24 @@ class MetadataWorker(QThread):
 
     def run(self) -> None:
         try:
-            tool = ExifTool(timeout=30)
-            for photo in self.photos:
-                if self.cancelled.is_set():
-                    break
-                try:
-                    metadata = tool.metadata(
-                        photo.source,
-                        "-ExifIFD:DateTimeOriginal",
-                        "-ExifIFD:CreateDate",
-                        "-File:ImageWidth",
-                        "-File:ImageHeight",
-                        "-IFD0:Orientation",
-                    )
-                    self.ready.emit(
-                        str(photo.id), {key: str(value) for key, value in metadata.items()}
-                    )
-                except Exception as error:  # noqa: BLE001 - report worker failures through Qt signals
-                    self.error.emit(f"{photo.source.name}：元数据读取失败：{error}")
+            with ExifTool(timeout=30, persistent=True) as tool:
+                for photo in self.photos:
+                    if self.cancelled.is_set():
+                        break
+                    try:
+                        metadata = tool.metadata(
+                            photo.source,
+                            "-ExifIFD:DateTimeOriginal",
+                            "-ExifIFD:CreateDate",
+                            "-File:ImageWidth",
+                            "-File:ImageHeight",
+                            "-IFD0:Orientation",
+                        )
+                        self.ready.emit(
+                            str(photo.id), {key: str(value) for key, value in metadata.items()}
+                        )
+                    except Exception as error:  # noqa: BLE001 - report worker failures through Qt signals
+                        self.error.emit(f"{photo.source.name}：元数据读取失败：{error}")
         except Exception as error:  # noqa: BLE001 - report worker failures through Qt signals
             self.error.emit(f"ExifTool 不可用：{error}")
 
@@ -93,18 +103,18 @@ class PreflightWorker(QThread):
 
     def run(self) -> None:
         try:
-            tool = ExifTool(timeout=30)
-            registry = StepRegistry()
-            registry.register(
-                LocationStep(
-                    tool,
-                    clear_auxiliary_gps=self.clear_auxiliary_gps,
-                    allow_nef_after_viewer_check=self.allow_nef_after_viewer_check,
+            with ExifTool(timeout=30, persistent=True) as tool:
+                registry = StepRegistry()
+                registry.register(
+                    LocationStep(
+                        tool,
+                        clear_auxiliary_gps=self.clear_auxiliary_gps,
+                        allow_nef_after_viewer_check=self.allow_nef_after_viewer_check,
+                    )
                 )
-            )
-            registry.register(WatermarkStep(tool, self.settings.resources))
-            registry.register(ExportStep())
-            plan = build_plan(self.job, registry, cancelled=self.cancelled)
+                registry.register(WatermarkStep(tool, self.settings.resources))
+                registry.register(ExportStep())
+                plan = build_plan(self.job, registry, cancelled=self.cancelled)
             if not self.cancelled.is_set():
                 self.ready.emit(plan)
         except Exception as error:  # noqa: BLE001 - report worker failures through Qt signals
@@ -162,11 +172,11 @@ class PreviewWorker(QThread):
             caption = f"{size[0]} × {size[1]} px"
             pixels = prepared.pixels
             if request.settings is not None:
-                tool = ExifTool(timeout=30)
-                step = WatermarkStep(tool, request.settings.resources)
-                config, date_source = step.configuration(
-                    request.photo, StepSpec("watermark", params=request.settings.params)
-                )
+                with ExifTool(timeout=30, persistent=True) as tool:
+                    step = WatermarkStep(tool, request.settings.resources)
+                    config, date_source = step.configuration(
+                        request.photo, StepSpec("watermark", params=request.settings.params)
+                    )
                 if self.cancelled.is_set():
                     return
                 overlay = render_watermark_layer(size, config, request.settings.resources)

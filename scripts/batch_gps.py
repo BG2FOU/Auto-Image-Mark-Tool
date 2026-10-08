@@ -94,28 +94,30 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        tool = ExifTool(args.exiftool)
-        rows = load_rows(args.csv, args.input_root)
-        registry = StepRegistry()
-        registry.register(LocationStep(tool, clear_auxiliary_gps=args.clear_auxiliary_gps))
-        registry.register(ExportStep())
-        plan = build_plan(
-            BatchJob(rows, preset("location_only"), args.output_root),
-            registry,
-        )
-        for item in plan.items:
-            print(f"{item.photo.source.name} -> {item.target}")
-        if not args.execute:
-            print(f"Preflight passed for {len(plan.items)} files; add --execute to write copies.")
-            return 0
-        results = run_plan(plan)
-        if args.report:
-            _report(args.report, results)
-        for result in results:
-            status = result.status.value
-            detail = str(result.output) if result.output else (result.error or "")
-            print(f"{status}: {detail}")
-        return 0 if all(result.status == ItemStatus.SUCCESS for result in results) else 1
+        with ExifTool(args.exiftool, persistent=True) as tool:
+            rows = load_rows(args.csv, args.input_root)
+            registry = StepRegistry()
+            registry.register(LocationStep(tool, clear_auxiliary_gps=args.clear_auxiliary_gps))
+            registry.register(ExportStep())
+            plan = build_plan(
+                BatchJob(rows, preset("location_only"), args.output_root),
+                registry,
+            )
+            for item in plan.items:
+                print(f"{item.photo.source.name} -> {item.target}")
+            if not args.execute:
+                print(
+                    f"Preflight passed for {len(plan.items)} files; add --execute to write copies."
+                )
+                return 0
+            results = run_plan(plan)
+            if args.report:
+                _report(args.report, results)
+            for result in results:
+                status = result.status.value
+                detail = str(result.output) if result.output else (result.error or "")
+                print(f"{status}: {detail}")
+            return 0 if all(result.status == ItemStatus.SUCCESS for result in results) else 1
     except (OSError, ValueError, RuntimeError) as error:
         parser.exit(2, f"Batch preflight failed: {error}\n")
 

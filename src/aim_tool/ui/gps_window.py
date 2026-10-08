@@ -289,16 +289,21 @@ class GpsWindow(QMainWindow):
                 )
             )
         if self._tool is None:
-            self._tool = ExifTool()
+            self._tool = ExifTool(persistent=True)
         registry = StepRegistry()
         registry.register(
             LocationStep(self._tool, allow_nef_after_viewer_check=self.allow_nef_after_viewer_check)
         )
         registry.register(ExportStep())
-        return build_plan(
-            BatchJob(tuple(photos), preset("location_only"), Path(self.output_root_edit.text())),
-            registry,
-        )
+        try:
+            return build_plan(
+                BatchJob(
+                    tuple(photos), preset("location_only"), Path(self.output_root_edit.text())
+                ),
+                registry,
+            )
+        finally:
+            self._tool.close()
 
     def preflight(self) -> ExecutionPlan | None:
         try:
@@ -382,4 +387,6 @@ class GpsWindow(QMainWindow):
             self.cancel()
             event.ignore()
             return
+        if self._tool is not None:
+            self._tool.close()
         super().closeEvent(event)

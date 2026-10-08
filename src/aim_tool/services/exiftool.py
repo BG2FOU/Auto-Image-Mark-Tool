@@ -13,8 +13,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
-from threading import Lock
-from typing import Any
+from queue import Empty, Queue
+from threading import Lock, Thread
+from time import monotonic
+from typing import Any, Self, TextIO
+from uuid import uuid4
 
 from aim_tool.domain.validation import validate_altitude
 from aim_tool.domain.validation import validate_coordinates as _validate_coordinates
@@ -140,9 +143,9 @@ def _windows_ansi_directory(directory: Path) -> Path | None:
         return Path(buffer.value)
 
 
-def _run_frozen_windows(
-    command: list[str], directory: Path | None, input_text: str | None, timeout: int
-) -> subprocess.CompletedProcess[str]:
+def _popen_frozen_windows(
+    command: list[str], directory: Path | None, *, piped_input: bool
+) -> subprocess.Popen[str]:
     """Spawn Perl with its own DLLs, then immediately restore the GUI DLL path."""
     if sys.platform != "win32":
         raise OSError("Windows helper spawning requires Windows")
@@ -172,7 +175,7 @@ def _run_frozen_windows(
                 command,
                 cwd=directory,
                 env=environment,
-                stdin=subprocess.PIPE if input_text is not None else None,
+                stdin=subprocess.PIPE if piped_input else None,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -182,6 +185,13 @@ def _run_frozen_windows(
             )
         finally:
             kernel.SetDllDirectoryW(original)
+    return process
+
+
+def _run_frozen_windows(
+    command: list[str], directory: Path | None, input_text: str | None, timeout: int
+) -> subprocess.CompletedProcess[str]:
+    process = _popen_frozen_windows(command, directory, piped_input=input_text is not None)
     try:
         output, errors = process.communicate(input_text, timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -192,21 +202,160 @@ def _run_frozen_windows(
 
 
 class ExifTool:
-    def __init__(self, executable: Path | None = None, timeout: int = 90) -> None:
+    def __init__(
+        self, executable: Path | None = None, timeout: int = 90, *, persistent: bool = False
+    ) -> None:
         self.executable = (executable or _default_executable()).resolve()
         self.timeout = timeout
         self._support_directory: Path | None = None
         self._runtime_temporary: tempfile.TemporaryDirectory[str] | None = None
+        self._persistent = False
+        self._session_lock = Lock()
+        self._process: subprocess.Popen[str] | None = None
+        self._events: Queue[tuple[str, str | None]] = Queue()
+        self._readers: list[Thread] = []
+        self._request_id = 0
         if not self.executable.is_file():
             raise ExifToolError(f"ExifTool is missing: {self.executable}")
         try:
             version = self._run("-ver").strip()
             if version != VERSION:
                 raise ExifToolError(f"Expected ExifTool {VERSION}, got {version}")
+            self._persistent = persistent
         except Exception:
             if self._runtime_temporary is not None:
                 self._runtime_temporary.cleanup()
             raise
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        # Workers explicitly close sessions; this also covers legacy callers.
+        try:
+            self.close()
+        except Exception:  # noqa: BLE001, S110 - destructors must not raise
+            pass
+
+    def close(self) -> None:
+        """Stop the child and readers; a later operation can start a fresh session."""
+        with self._session_lock:
+            self._stop_session()
+            if self._runtime_temporary is not None:
+                self._runtime_temporary.cleanup()
+                self._runtime_temporary = None
+                self._support_directory = None
+
+    def _stop_session(self, *, force: bool = False) -> None:
+        process, self._process = self._process, None
+        if process is not None:
+            if process.poll() is None:
+                try:
+                    if force:
+                        process.kill()
+                    elif process.stdin is not None:
+                        process.stdin.write("-stay_open\nFalse\n")
+                        process.stdin.flush()
+                    process.wait(timeout=2)
+                except (OSError, subprocess.TimeoutExpired):
+                    process.kill()
+                    process.wait(timeout=2)
+            for reader in self._readers:
+                reader.join(timeout=2)
+            for stream in (process.stdin, process.stdout, process.stderr):
+                if stream is not None:
+                    stream.close()
+        self._readers = []
+        self._events = Queue()
+
+    @staticmethod
+    def _read_stream(stream: TextIO, events: Queue[tuple[str, str | None]], name: str) -> None:
+        try:
+            for line in stream:
+                events.put((name, line))
+        finally:
+            events.put((name, None))
+
+    def _session_run(
+        self,
+        command: list[str],
+        directory: Path | None,
+        arguments: tuple[str, ...],
+        argfile_input: str | None,
+    ) -> subprocess.CompletedProcess[str]:
+        wire = list(arguments)
+        if argfile_input is not None:
+            if wire[-2:] != ["-@", "-"]:
+                raise ExifToolError("Persistent argument input requires a final -@ -")
+            wire = wire[:-2] + argfile_input.splitlines()
+        if any("\r" in argument or "\n" in argument for argument in wire):
+            raise ExifToolError("ExifTool arguments cannot contain a newline")
+        with self._session_lock:
+            try:
+                if self._process is None:
+                    launch = [*command, "-stay_open", "True", "-@", "-"]
+                    if sys.platform == "win32" and getattr(sys, "frozen", False):
+                        self._process = _popen_frozen_windows(launch, directory, piped_input=True)
+                    else:
+                        self._process = subprocess.Popen(
+                            launch,
+                            cwd=directory,
+                            stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True,
+                            encoding="utf-8",
+                            errors="replace",
+                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                        )
+                    for name, stream in (
+                        ("out", self._process.stdout),
+                        ("err", self._process.stderr),
+                    ):
+                        assert stream is not None
+                        reader = Thread(
+                            target=self._read_stream,
+                            args=(stream, self._events, name),
+                            daemon=True,
+                            name=f"aim-exiftool-{name}",
+                        )
+                        self._readers.append(reader)
+                        reader.start()
+                process = self._process
+                assert process.stdin is not None
+                self._request_id += 1
+                ready = f"{{ready{self._request_id}}}"
+                marker = f"aim-{uuid4().hex}:"
+                wire.extend(("-echo4", marker + "${status}", f"-execute{self._request_id}"))
+                deadline = monotonic() + self.timeout
+                process.stdin.write("\n".join(wire) + "\n")
+                process.stdin.flush()
+                output: list[str] = []
+                errors: list[str] = []
+                stdout_done = False
+                status = None
+                while not stdout_done or status is None:
+                    remaining = deadline - monotonic()
+                    if remaining <= 0:
+                        raise Empty
+                    name, line = self._events.get(timeout=remaining)
+                    if line is None:
+                        raise ExifToolError("ExifTool session exited before completing the request")
+                    if name == "out" and line.rstrip("\r\n") == ready:
+                        stdout_done = True
+                    elif name == "err" and line.startswith(marker):
+                        status = int(line[len(marker) :].strip())
+                    else:
+                        (output if name == "out" else errors).append(line)
+                return subprocess.CompletedProcess(
+                    command, status, "".join(output), "".join(errors)
+                )
+            except (OSError, Empty, ValueError, ExifToolError) as error:
+                self._stop_session(force=True)
+                raise ExifToolError(f"ExifTool session failed or timed out: {error}") from error
 
     def _windows_runtime_directory(self, support: Path) -> Path:
         if self._support_directory is not None:
@@ -263,7 +412,14 @@ class ExifTool:
                 working_directory = self._windows_runtime_directory(support)
                 command = [str(working_directory / "perl.exe"), "-Ilib", "exiftool.pl", *arguments]
         try:
-            if sys.platform == "win32" and getattr(sys, "frozen", False):
+            if self._persistent:
+                completed = self._session_run(
+                    command[: len(command) - len(arguments)],
+                    working_directory,
+                    arguments,
+                    argfile_input,
+                )
+            elif sys.platform == "win32" and getattr(sys, "frozen", False):
                 completed = _run_frozen_windows(
                     command, working_directory, argfile_input, self.timeout
                 )
