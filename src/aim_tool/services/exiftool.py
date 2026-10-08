@@ -485,6 +485,11 @@ class ExifTool:
             "-GPS:GPSAltitude",
             "-GPS:GPSAltitudeRef",
         )
+        return self.gps_from_metadata(values)
+
+    @staticmethod
+    def gps_from_metadata(values: Mapping[str, Any]) -> GpsCoordinates | None:
+        """Apply the same strict GPS validation to an already read record."""
         keys = (
             "GPS:GPSLatitude",
             "GPS:GPSLatitudeRef",
@@ -570,17 +575,16 @@ class ExifTool:
             f"-GPS:GPSAltitudeRef#={1 if altitude < 0 else 0}",
         )
         self._run_for_path(path, *args)
-        readback = self.read_gps(path)
+        actual = self.metadata(path, "-GPS:all")
+        readback = self.gps_from_metadata(actual)
         if readback is None or (
             abs(readback.latitude - latitude) > 1e-6
             or abs(readback.longitude - longitude) > 1e-6
             or abs(readback.altitude - altitude) > 1e-4
         ):
             raise ExifToolError("GPS readback differs from requested coordinates")
-        if raw_tags:
-            actual = self.metadata(path, *(f"-GPS:{tag}" for tag in raw_tags))
-            if any(actual.get(f"GPS:{tag}") != value for tag, value in raw_tags.items()):
-                raise ExifToolError("RAW GPS date, satellites or datum readback differs")
+        if raw_tags and any(actual.get(f"GPS:{tag}") != value for tag, value in raw_tags.items()):
+            raise ExifToolError("RAW GPS date, satellites or datum readback differs")
 
     def copy_tags(
         self,

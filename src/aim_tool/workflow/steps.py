@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID
 
 from aim_tool.domain import Artifact, ImageKind, PhotoItem, StepSpec
@@ -180,15 +180,18 @@ class WatermarkStep:
     def output_kind(self, input_kind: ImageKind) -> ImageKind:
         return ImageKind.JPEG
 
-    def _config(self, photo: PhotoItem, spec: StepSpec) -> tuple[WatermarkConfig, str]:
+    def _config(
+        self, photo: PhotoItem, spec: StepSpec, *, metadata: Mapping[str, Any] | None = None
+    ) -> tuple[WatermarkConfig, str]:
         from aim_tool.services.templates import project_default_config
         from aim_tool.services.watermark import Anchor, Category
 
         category = photo.edits.get("category", "")
         content = photo.edits.get("subject", "")
-        metadata = self.tool.metadata(
-            photo.source, "-ExifIFD:DateTimeOriginal", "-ExifIFD:CreateDate"
-        )
+        if metadata is None:
+            metadata = self.tool.metadata(
+                photo.source, "-ExifIFD:DateTimeOriginal", "-ExifIFD:CreateDate"
+            )
         resolved = resolve_capture_date(
             manual=photo.taken_on,
             exif_datetime_original=metadata.get("ExifIFD:DateTimeOriginal"),
@@ -239,8 +242,11 @@ class WatermarkStep:
         from aim_tool.services.images import prepare_jpeg
         from aim_tool.services.watermark import render_watermark_layer
 
-        config, date_source = self._config(item, spec)
-        self.tool.read_gps(item.source)
+        metadata = self.tool.metadata(
+            item.source, "-ExifIFD:DateTimeOriginal", "-ExifIFD:CreateDate", "-GPS:all"
+        )
+        config, date_source = self._config(item, spec, metadata=metadata)
+        self.tool.gps_from_metadata(metadata)
         quality = spec.params.get("jpeg_quality", 95)
         subsampling = spec.params.get("jpeg_subsampling", 0)
         if type(quality) is not int or not 1 <= quality <= 100:

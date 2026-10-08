@@ -68,7 +68,7 @@ def preserve_watermark_metadata(tool: ExifTool, authority: Path, target: Path) -
     """Copy/verify metadata on an encoded temporary JPEG before it is committed."""
     before = tool.metadata(authority, *(f"-{tag}" for tag in WATERMARK_TAGS))
     # Reject partial GPS instead of exporting a successful-looking damaged record.
-    source_gps = tool.read_gps(authority)
+    source_gps = tool.gps_from_metadata(before)
     with Image.open(target) as encoded:
         if encoded.format != "JPEG":
             raise ValueError("Watermark metadata output must be JPEG")
@@ -85,7 +85,12 @@ def preserve_watermark_metadata(tool: ExifTool, authority: Path, target: Path) -
     tags = WATERMARK_TAGS if any(tag != "SourceFile" for tag in before) else ()
     tool.copy_tags(authority, target, tags, overrides)
     after = tool.metadata(
-        target, *(f"-{tag}" for tag in WATERMARK_TAGS), *(f"-{tag}" for tag in overrides)
+        target,
+        *(f"-{tag}" for tag in WATERMARK_TAGS),
+        *(f"-{tag}" for tag in overrides),
+        "-IFD1:all",
+        "-PreviewImage",
+        "-JpgFromRaw",
     )
     for tag, value in before.items():
         if tag == "SourceFile":
@@ -94,7 +99,7 @@ def preserve_watermark_metadata(tool: ExifTool, authority: Path, target: Path) -
             raise ExifToolError(f"Watermark metadata readback differs: {tag}")
     if any(after.get(tag) != value for tag, value in overrides.items()):
         raise ExifToolError("Watermark orientation, dimensions or color space readback failed")
-    output_gps = tool.read_gps(target)
+    output_gps = tool.gps_from_metadata(after)
     if source_gps is None:
         if output_gps is not None:
             raise ExifToolError("Watermark output acquired unexpected GPS")
@@ -103,8 +108,11 @@ def preserve_watermark_metadata(tool: ExifTool, authority: Path, target: Path) -
         and abs(source_gps.longitude - output_gps.longitude) <= 1e-6
     ):
         raise ExifToolError("Watermark output GPS differs from current artifact")
-    stale = tool.metadata(target, "-IFD1:all", "-PreviewImage", "-JpgFromRaw")
-    if any(tag != "SourceFile" for tag in stale):
+    if any(
+        tag.startswith(("IFD1:", "ExifTool:"))
+        or tag.rpartition(":")[2] in {"PreviewImage", "JpgFromRaw"}
+        for tag in after
+    ):
         raise ExifToolError("Watermark output contains a stale preview or thumbnail")
     with Image.open(target) as verified:
         if verified.size != size or verified.info.get("icc_profile") != icc:
