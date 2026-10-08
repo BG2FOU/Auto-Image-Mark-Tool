@@ -83,6 +83,31 @@ def _check(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
+def _add_editing_lists(source: Path) -> None:
+    """Exercise repeated mask and document-history limits with our own tiny XMP."""
+    items = "<rdf:li>0</rdf:li>" * 1001
+    mask = (
+        '<rdf:li rdf:parseType="Resource"><crs:GestureDabs><rdf:Seq>'
+        f"{items}</rdf:Seq></crs:GestureDabs></rdf:li>"
+    )
+    xml = (
+        '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        '<rdf:Description rdf:about="" xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/"'
+        ' xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/">'
+        '<crs:MaskGroupBasedCorrections><rdf:Seq><rdf:li rdf:parseType="Resource">'
+        f"<crs:CorrectionMasks><rdf:Seq>{mask * 2}</rdf:Seq></crs:CorrectionMasks>"
+        "</rdf:li></rdf:Seq></crs:MaskGroupBasedCorrections>"
+        f"<photoshop:DocumentAncestors><rdf:Bag>{items}</rdf:Bag></photoshop:DocumentAncestors>"
+        "</rdf:Description></rdf:RDF></x:xmpmeta>"
+    )
+    packet = b"http://ns.adobe.com/xap/1.0/\0" + xml.encode("utf-8")
+    jpeg = source.read_bytes()
+    source.write_bytes(
+        jpeg[:2] + b"\xff\xe1" + (len(packet) + 2).to_bytes(2, "big") + packet + jpeg[2:]
+    )
+
+
 def run_self_test(report: Path) -> int:
     result: dict[str, object] = {
         "version": __version__,
@@ -103,6 +128,7 @@ def run_self_test(report: Path) -> int:
             exif[274] = 6
             exif[34665] = {36867: "2026:09:26 15:33:31"}
             Image.new("RGB", (1007, 672), (30, 50, 70)).save(source, exif=exif, icc_profile=profile)
+            _add_editing_lists(source)
             original = sha256(source.read_bytes()).digest()
             tool = ExifTool(timeout=30)
             if result["frozen"]:
@@ -196,6 +222,13 @@ def run_self_test(report: Path) -> int:
                 _check(
                     tool.metadata(output)["ExifIFD:DateTimeOriginal"] == "2026:09:26 15:33:31",
                     "Capture date changed",
+                )
+                _check(
+                    not any(
+                        key.startswith(("XMP-crs:", "XMP-photoshop:"))
+                        for key in tool.metadata(output)
+                    ),
+                    "Unused editing lists leaked into the output",
                 )
                 with Image.open(output) as image:
                     _check(image.size == (672, 1007), "Orientation or dimensions failed")
@@ -327,6 +360,7 @@ def run_self_test(report: Path) -> int:
                     "nef_scope",
                     "altitude",
                     "coordinate_conversion",
+                    "editing_list_warnings",
                 ],
             )
     except Exception as error:  # noqa: BLE001 - windowless builds report all smoke failures

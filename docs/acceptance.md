@@ -438,3 +438,16 @@ EXE 未签名；特殊 Windows 临时路径仍可能要求可写 ASCII TEMP。�
 - [v0.4.0-rc.3](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.3) 已公开发布；7 份附件（EXE、ZIP、DEB、BUILD_INFO、SHA256SUMS、第三方声明、许可归档）已从公开 Release 下载。check_release.py 校验全部附件哈希、标签与源 SHA 通过，Windows ZIP 私人素材/RAW 库排除审计及 LICENSES.zip 完整性检查通过。
 - 公开 Windows EXE 校验身份与 SHA256 后，在中文含空格下载目录以系统路径实际执行 18 类离线自检通过；公开 Linux DEB 解包后实际运行同一 18 类自检通过，包含 workflow_layout。日志及下载包位于忽略的 build/rc3-published-*。
 - rc.2 Release 已撤下，rc.2 原标签与历史提交保留；本次未移动既有标签。此前 JPG Adobe 蒙版及 Nikon NEF GPS 修补保留在 rc.3。EXE 未签名；未宣称所有 Windows 桌面环境/缩放比例均完成人工验收。
+
+## v0.4.0-rc.4 无关编辑列表警告兼容（2026-10-08）
+
+用户要求修复带 `[x2]` 的 GestureDabs 报错，并忽略类似不影响处理的警告，完成后推送并发布小版本。版本更新为 0.4.0rc4，沿用已有 JPG/NEF 功能范围。
+
+- 按 ExifTool 13.59 的已知格式识别列表 1000 项提取上限和处理缓慢提示，兼容 `[xN]` 重复次数；覆盖未参与元数据复制的 Camera Raw/crss、Lightroom、Photoshop DocumentAncestors 和 XMP History。检查本次全部复制/覆写标签，所请求的相关命名空间或 XMP/All 全量数据不允许忽略截断。
+- 不全局启用 -m / IgnoreMinorErrors；MakerNotes、预览、XMP 损坏、所需标签、非零退出、未知及混合警告仍拒绝输出。原有元数据白名单、GPS/拍摄信息读回、ICC 和原片保护继续执行。
+- 专项回归 90 passed，包含真实 ExifTool 的单/双蒙版、PaintBasedCorrections、DocumentAncestors、History 和 Lightroom 超限列表复制；双蒙版实测产生 `[x2]`。验证 GPS/海拔、拍摄时间、机型、版权、像素、ICC、原片 SHA256。
+- 本地 unit/gui/integration 非 RAW 回归 270 passed、2 Windows 专属 skipped、8 RAW deselected；日志位于忽略的 build/rc4-regression.log。Ruff、格式（92 文件）、mypy（41 源文件）、依赖与版本来源检查通过。
+- 冻结自测新增 editing_list_warnings，共 19 类：用自有合成 XMP 在真实坐标＋水印批次覆盖两个超限蒙版及超限文档来源列表。源码离线自检全部通过，报告位于忽略的 build/rc4-source-self-test.json；实际发行包自检随两平台构建及公开下载继续验证。
+- 未读取报错中的共享原图；合成回归不能视为该原图实测。私人照片、字体、签名和四个原有未跟踪 Linux demo 文件均不纳入提交或公开构建。
+
+源提交、Windows CI、正式发布流程与公开下载检查完成后在本节追加证据。

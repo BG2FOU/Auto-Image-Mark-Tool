@@ -69,6 +69,7 @@ def main() -> int:
                 "nef_scope",
                 "altitude",
                 "coordinate_conversion",
+                "editing_list_warnings",
             ],
         }
         if completed.returncode != 0 or data != expected:

@@ -2,7 +2,7 @@
 
 ## 1. 选择流程与照片
 
-从 [v0.4.0-rc.3 Release](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.3) 下载 Windows EXE/ZIP 或 Linux DEB，启动 `AutoImageMarkTool.exe` / `auto-image-mark-tool`；源码运行使用 `python -m aim_tool`。启动后默认选择“坐标”，仅勾选“写入坐标”；可切换“水印”或“坐标＋水印”。步骤顺序固定为坐标在前、水印在后；至少启用一个处理步骤。可保存/载入本地流程预设，NEF 仅可选择“坐标”，如批次中有勾选 NEF，启用水印会阻止整批处理；可取消勾选 NEF 后处理 JPG。
+从 [v0.4.0-rc.4 Release](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.4) 下载 Windows EXE/ZIP 或 Linux DEB，启动 `AutoImageMarkTool.exe` / `auto-image-mark-tool`；源码运行使用 `python -m aim_tool`。启动后默认选择“坐标”，仅勾选“写入坐标”；可切换“水印”或“坐标＋水印”。步骤顺序固定为坐标在前、水印在后；至少启用一个处理步骤。可保存/载入本地流程预设，NEF 仅可选择“坐标”，如批次中有勾选 NEF，启用水印会阻止整批处理；可取消勾选 NEF 后处理 JPG。
 
 点击添加照片/文件夹，或将 JPG/JPEG/NEF 拖入窗口。复选框控制处理范围；当前选中行控制右侧预览。可以搜索和排序；批量应用按照片稳定 ID 工作，排序不会改变对应关系。可移除选中行，不会删除原文件。
 
@@ -41,6 +41,8 @@ Windows 便携版 `locations.json` 在 EXE 同目录；目录必须可写。其�
 坐标流程保留原文件名及格式，不重编码图像；NEF 输出同名 NEF 副本，不生成 JPG；水印流程输出 `_marked.jpg`，统一 sRGB，方向归一化一次，保留实际像素、DPI、拍摄信息、版权和当前 GPS。组合流程的 GPS 来自已定位副本。已有输出、源目录别名及已标记输入按保护规则拒绝，不覆盖原片或成品。
 
 运行时禁用编辑，取消会在当前不可中断操作结束或超时后停止后续处理；关闭窗口也先取消并等待线程安全退出。失败不提交半成品，已成功项保留。完成后可勾选失败/取消项重试，避免重新处理成功项；状态和详细错误在表格/作业日志中查看。
+
+无关的 Camera Raw/Lightroom 编辑列表、Photoshop 文档来源和 XMP 编辑历史的列表超限或缓慢提示不会中断 JPG 处理，支持 `[x2]` 等重复次数。所需元数据、文件损坏、读写错误和其他警告仍会阻止成品提交。
 
 结果报告只在点击导出后保存，包含输入路径、状态、输出、步骤、错误和警告，不包含专门的坐标字段；不自动上传。照片自身可能含 GPS，请按分享对象决定是否公开成品。
 

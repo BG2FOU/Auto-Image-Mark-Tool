@@ -22,6 +22,32 @@ from aim_tool.domain.validation import validate_coordinates as _validate_coordin
 VERSION = "13.59"
 ROOT = Path(__file__).resolve().parents[3]
 _WINDOWS_SPAWN_LOCK = Lock()
+_XMP_LIST_WARNING = re.compile(
+    r"Warning: \[(?:Minor|minor)\] "
+    r"(?:Extracted only 1000 (?P<limited>[A-Za-z][A-Za-z0-9]*:[A-Za-z][A-Za-z0-9]*) "
+    r"items\. Ignore minor errors to extract all|"
+    r"Excessive number of items for (?P<slow>[A-Za-z][A-Za-z0-9]*:[A-Za-z][A-Za-z0-9]*)"
+    r"\. Processing may be slow)"
+    r"(?: \[x[1-9][0-9]*\])? - .+"
+)
+
+
+def _unused_editing_list_warning(line: str, copied_tags: tuple[str, ...]) -> bool:
+    """Ignore list limits/performance notices only for unrequested editing metadata."""
+    match = _XMP_LIST_WARNING.fullmatch(line)
+    if match is None:
+        return False
+    namespace, field = (match["limited"] or match["slow"]).lower().split(":")
+    # Camera Raw/Lightroom settings and Photoshop/XMP document history aren't
+    # needed by the rendered JPEG. Do not classify arbitrary minor warnings here.
+    optional = namespace in {"crs", "crss", "lr"} or (namespace, field) in {
+        ("photoshop", "documentancestors"),
+        ("xmpmm", "history"),
+    }
+    if not optional:
+        return False
+    requested_groups = {tag.partition(":")[0].lower() for tag in copied_tags}
+    return not requested_groups.intersection({"all", "xmp", namespace, f"xmp-{namespace}"})
 
 
 class ExifToolError(RuntimeError):
@@ -221,7 +247,7 @@ class ExifTool:
         *arguments: str,
         argfile_input: str | None = None,
         reject_warnings: bool = False,
-        ignore_crs_mask_limit: bool = False,
+        copied_tags: tuple[str, ...] | None = None,
     ) -> str:
         command = (
             ["perl", str(self.executable), *arguments]
@@ -261,19 +287,10 @@ class ExifTool:
                 f"ExifTool exited {completed.returncode}: {completed.stderr.strip()}"
             )
         warnings = completed.stderr.strip().splitlines()
-        if ignore_crs_mask_limit:
-            # This unused Camera Raw brush list is not transferred by the whitelist.
+        if copied_tags is not None:
             # Keep the extraction limit; do not globally enable IgnoreMinorErrors.
             warnings = [
-                line
-                for line in warnings
-                if re.fullmatch(
-                    r"Warning: \[Minor\] Extracted only 1000 "
-                    r"crs:MaskGroupBasedCorrectionsCorrectionMasksGestureDabs items\. "
-                    r"Ignore minor errors to extract all - .+",
-                    line,
-                )
-                is None
+                line for line in warnings if not _unused_editing_list_warning(line, copied_tags)
             ]
         if reject_warnings and warnings:
             raise ExifToolError(f"ExifTool metadata warning: {completed.stderr.strip()}")
@@ -446,8 +463,5 @@ class ExifTool:
             "-",
             argfile_input="\n".join(arguments) + "\n",
             reject_warnings=True,
-            ignore_crs_mask_limit=all(
-                tag.partition(":")[0].lower() not in {"xmp", "xmp-crs", "crs", "all"}
-                for tag in tags
-            ),
+            copied_tags=names,
         )

@@ -1,4 +1,4 @@
-"""Only an unused Adobe brush-list limit may pass strict metadata transfer."""
+"""Unused editing-list notices may pass; required metadata stays strict."""
 
 from pathlib import Path
 from subprocess import CompletedProcess
@@ -30,8 +30,39 @@ def _copy(tmp_path: Path, stderr: str, tags: tuple[str, ...], returncode: int = 
         assert "-ignoreMinorErrors" not in args
 
 
-def test_unused_mask_list_limit_does_not_fail_whitelist_copy(tmp_path: Path) -> None:
-    _copy(tmp_path, MASK_WARNING, ("ExifIFD:DateTimeOriginal", "XMP-dc:Rights", "GPS:all"))
+@pytest.mark.parametrize(
+    "field",
+    (
+        "crs:MaskGroupBasedCorrectionsCorrectionMasksGestureDabs",
+        "crs:MaskGroupBasedCorrectionsCorrectionMasksMasksDabs",
+        "crs:PaintBasedCorrectionsCorrectionMasksDabs",
+        "crs:GradientBasedCorrectionsCorrectionMasksDabs",
+        "crss:Parameters",
+        "lr:hierarchicalSubject",
+        "photoshop:DocumentAncestors",
+        "xmpMM:History",
+    ),
+)
+@pytest.mark.parametrize("counter", ("", " [x2]", " [x12]"))
+@pytest.mark.parametrize("kind", ("limit", "slow"))
+def test_unused_editing_lists_do_not_fail_whitelist_copy(
+    tmp_path: Path, field: str, counter: str, kind: str
+) -> None:
+    message = (
+        f"[Minor] Extracted only 1000 {field} items. Ignore minor errors to extract all"
+        if kind == "limit"
+        else f"[minor] Excessive number of items for {field}. Processing may be slow"
+    )
+    warning = f"Warning: {message}{counter} - \\\\server\\中文 & 照片\\source.jpg\n"
+    _copy(tmp_path, warning, ("ExifIFD:DateTimeOriginal", "XMP-dc:Rights", "GPS:all"))
+
+
+def test_multiple_optional_warnings_do_not_fail_copy(tmp_path: Path) -> None:
+    _copy(
+        tmp_path,
+        MASK_WARNING + MASK_WARNING.replace("all -", "all [x2] -"),
+        ("GPS:all",),
+    )
 
 
 @pytest.mark.parametrize(
@@ -40,8 +71,20 @@ def test_unused_mask_list_limit_does_not_fail_whitelist_copy(tmp_path: Path) -> 
         "Warning: [minor] Bad MakerNotes offset - source.jpg\n",
         MASK_WARNING + "Warning: [minor] Bad MakerNotes offset - source.jpg\n",
         "Warning: [minor] Bad MakerNotes offset - source.jpg\n" + MASK_WARNING,
-        MASK_WARNING.replace("GestureDabs", "MaskName"),
         MASK_WARNING.replace("crs:", "dc:"),
+        MASK_WARNING.replace("crs:", "unknown:"),
+        MASK_WARNING.replace(
+            "crs:MaskGroupBasedCorrectionsCorrectionMasksGestureDabs", "dc:creator"
+        ),
+        MASK_WARNING.replace(
+            "crs:MaskGroupBasedCorrectionsCorrectionMasksGestureDabs", "photoshop:AuthorsPosition"
+        ),
+        MASK_WARNING.replace("1000", "100"),
+        MASK_WARNING.replace("all -", "all [x?] -"),
+        MASK_WARNING.replace("[Minor]", "[Major]"),
+        "Warning: [minor] Truncated XMP - source.jpg\n",
+        "Warning: [minor] Error reading PreviewImage - source.jpg\n",
+        "Error: Failed to write GPS - source.jpg\n",
     ),
 )
 def test_other_or_mixed_warnings_still_fail(tmp_path: Path, stderr: str) -> None:
@@ -49,10 +92,26 @@ def test_other_or_mixed_warnings_still_fail(tmp_path: Path, stderr: str) -> None
         _copy(tmp_path, stderr, ("GPS:all",))
 
 
-@pytest.mark.parametrize("tag", ("XMP-crs:all", "crs:all", "XMP:all", "All:all"))
-def test_requested_brush_metadata_cannot_be_truncated(tmp_path: Path, tag: str) -> None:
+@pytest.mark.parametrize(
+    "namespace, field",
+    (
+        ("crs", "MaskGroupBasedCorrectionsCorrectionMasksGestureDabs"),
+        ("crss", "Parameters"),
+        ("lr", "hierarchicalSubject"),
+        ("photoshop", "DocumentAncestors"),
+        ("xmpMM", "History"),
+    ),
+)
+@pytest.mark.parametrize("group", ("namespace", "xmp-namespace", "XMP", "All"))
+def test_requested_editing_metadata_cannot_be_truncated(
+    tmp_path: Path, namespace: str, field: str, group: str
+) -> None:
+    warning = MASK_WARNING.replace(
+        "crs:MaskGroupBasedCorrectionsCorrectionMasksGestureDabs", f"{namespace}:{field}"
+    ).replace("all -", "all [x2] -")
+    group = {"namespace": namespace, "xmp-namespace": f"XMP-{namespace}"}.get(group, group)
     with pytest.raises(ExifToolError, match="metadata warning"):
-        _copy(tmp_path, MASK_WARNING, (tag,))
+        _copy(tmp_path, warning, (f"{group}:all",))
 
 
 def test_nonzero_exit_is_never_ignored(tmp_path: Path) -> None:
