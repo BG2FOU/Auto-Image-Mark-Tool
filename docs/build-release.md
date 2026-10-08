@@ -39,6 +39,8 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/build_deb.py
 
 ## 已发布版本与下载验证
 
+[v0.4.0-rc.4](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.4) 对应源 SHA `ad4aa4135448c5ff8c37e9bd5baf9550569b7e30`，源码 CI `37804492251` 和正式流程 `37805125058` 首次完整运行全部成功。全部 7 份公开附件下载后的哈希、版本/源身份、许可归档和 ZIP/DEB 资源审计通过；公开 Windows EXE 中文路径及公开 Linux DEB 解包程序均通过 19 类离线自检，含无关编辑列表警告场景。完整证据见 [验收记录](acceptance.md)。
+
 [v0.4.0-rc.3](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.3) 对应源 SHA `652af38a075154958da8564efd291d8001dbc742`，源码 CI `37703531202` 通过，正式流程 `37703978957` 第二次完整运行全部成功。全部公开附件哈希及源身份、许可归档和 Windows ZIP 资源审计通过；公开 Windows EXE 中文路径及公开 Linux DEB 解包后的 18 类自检通过。首次 Windows Qt 进程异常与重跑记录见 [验收记录](acceptance.md)。rc.2 Release 已撤下，标签保留。
 
 [v0.4.0-rc.1](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.1) 对应源 SHA `2a0ef1759a42db3d8224d105df1f2dc94b6a0865`，正式运行 `37131275318` 全链成功。公开 EXE 中文路径自测、全部附件哈希/许可和实际公开 DEB 解包后的 15 类自测已验证。项目许可为 CC BY-NC-SA 4.0，历史版本保留原状。测试和发布完成后按用户要求暂停，详见 [验收记录](acceptance.md)。

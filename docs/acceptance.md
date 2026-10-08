@@ -450,4 +450,10 @@ EXE 未签名；特殊 Windows 临时路径仍可能要求可写 ASCII TEMP。�
 - 冻结自测新增 editing_list_warnings，共 19 类：用自有合成 XMP 在真实坐标＋水印批次覆盖两个超限蒙版及超限文档来源列表。源码离线自检全部通过，报告位于忽略的 build/rc4-source-self-test.json；实际发行包自检随两平台构建及公开下载继续验证。
 - 未读取报错中的共享原图；合成回归不能视为该原图实测。私人照片、字体、签名和四个原有未跟踪 Linux demo 文件均不纳入提交或公开构建。
 
-源提交、Windows CI、正式发布流程与公开下载检查完成后在本节追加证据。
+### rc.4 正式发布与公开下载验收（2026-10-09）
+
+- 修补源提交为 ad4aa4135448c5ff8c37e9bd5baf9550569b7e30，已推送并核对 origin/main；v0.4.0-rc.4 标签指向同一提交，不移动旧标签。源码 Windows CI [37804492251](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/37804492251) 全部成功。
+- 正式发布流程 [37805125058](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/37805125058) 首次完整运行成功，prepare、Windows、Linux、assemble、publish、verify-published-windows 全部通过。两平台实际程序均通过 19 类冻结自检，Windows 目录版及单文件 EXE 的中文路径检查通过。
+- [v0.4.0-rc.4](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.4) 已公开发布，含 EXE、ZIP、DEB、BUILD_INFO、SHA256SUMS、第三方声明和许可归档共 7 份附件。公开 Windows EXE 校验 SHA256 和源身份后，在中文含空格下载目录执行全部 19 类离线自检成功，包含 editing_list_warnings；日志保存在忽略的 build/rc4-release.log。
+- 全部 7 份附件已从公开 Release 下载到忽略的 build/rc4-published-download；在标签对应源提交执行 check_release.py，全部哈希、版本/标签、源 SHA 和固定工具链校验通过。Windows ZIP 完整性/公共资源审计（1370 项）、LICENSES.zip 完整性和两平台来源清单（560 项）通过；公开 DEB 解包后的资源审计（992 文件）通过，未包含私人照片/字体/签名、RAW 显影库或原有 demo。
+- 实际公开 DEB 解包程序通过全部 19 类离线自检，包含 editing_list_warnings；日志位于忽略的 build/rc4-published-deb-smoke.log。EXE 仍未签名；报错中的共享原图未实测，验证依据为真实 ExifTool 合成用例和发行包实际自检，不扩展 Nikon/Windows 人工实测范围。
