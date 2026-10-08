@@ -430,3 +430,11 @@ EXE 未签名；特殊 Windows 临时路径仍可能要求可写 ASCII TEMP。�
 - 冻结自测增加 workflow_layout，共 18 类，验证缩小并展开日志时文字不截断、放大后恢复；Windows/Linux 构建与公开 Windows 下载后自测沿用同一清单。原 JPG、NEF 写入及原片保护范围保持。
 - 本地 Linux 程序编译、目录程序自检、DEB 构建及解包后的 18 类自检通过，DEB 版本为 0.4.0~rc3。
 - 私人素材及原有四个未跟踪 Linux demo 文件不纳入提交。Windows CI、正式 Release 和公开下载验收完成后在本节追加证据。
+
+### rc.3 正式发布与公开下载验收
+
+- 修补源提交为 652af38a075154958da8564efd291d8001dbc742，已推送并核对远端主分支 SHA；v0.4.0-rc.3 标签指向同一提交。源码 Windows CI [37703531202](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/37703531202) 全部通过。
+- 正式发布流程 [37703978957](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/37703978957) 首次在既有导入对话框 GUI 测试中出现 Qt 原生进程 Aborted（未给出断言失败信息），结束该尝试后以相同代码完整重跑。第二次 prepare、Windows、Linux、assemble、publish、verify-published-windows 全部成功；未跳过失败用例或放宽检查，不能据此断言首次进程异常的具体原因。
+- [v0.4.0-rc.3](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.3) 已公开发布；7 份附件（EXE、ZIP、DEB、BUILD_INFO、SHA256SUMS、第三方声明、许可归档）已从公开 Release 下载。check_release.py 校验全部附件哈希、标签与源 SHA 通过，Windows ZIP 私人素材/RAW 库排除审计及 LICENSES.zip 完整性检查通过。
+- 公开 Windows EXE 校验身份与 SHA256 后，在中文含空格下载目录以系统路径实际执行 18 类离线自检通过；公开 Linux DEB 解包后实际运行同一 18 类自检通过，包含 workflow_layout。日志及下载包位于忽略的 build/rc3-published-*。
+- rc.2 Release 已撤下，rc.2 原标签与历史提交保留；本次未移动既有标签。此前 JPG Adobe 蒙版及 Nikon NEF GPS 修补保留在 rc.3。EXE 未签名；未宣称所有 Windows 桌面环境/缩放比例均完成人工验收。

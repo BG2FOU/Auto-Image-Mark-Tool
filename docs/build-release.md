@@ -39,6 +39,8 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/build_deb.py
 
 ## 已发布版本与下载验证
 
+[v0.4.0-rc.3](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.3) 对应源 SHA `652af38a075154958da8564efd291d8001dbc742`，源码 CI `37703531202` 通过，正式流程 `37703978957` 第二次完整运行全部成功。全部公开附件哈希及源身份、许可归档和 Windows ZIP 资源审计通过；公开 Windows EXE 中文路径及公开 Linux DEB 解包后的 18 类自检通过。首次 Windows Qt 进程异常与重跑记录见 [验收记录](acceptance.md)。rc.2 Release 已撤下，标签保留。
+
 [v0.4.0-rc.1](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.1) 对应源 SHA `2a0ef1759a42db3d8224d105df1f2dc94b6a0865`，正式运行 `37131275318` 全链成功。公开 EXE 中文路径自测、全部附件哈希/许可和实际公开 DEB 解包后的 15 类自测已验证。项目许可为 CC BY-NC-SA 4.0，历史版本保留原状。测试和发布完成后按用户要求暂停，详见 [验收记录](acceptance.md)。
 
 [v0.3.0-rc.1](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.3.0-rc.1) 对应源 SHA `946ea9ad9c5c0b9218ff0d4b430bf5bcf2054cf2`，正式运行 `37113456901` 成功，包含公开 Windows EXE 下载后的原生离线自测。全部公开附件哈希及实际下载的 Linux DEB 解包自测已验证，见 [验收记录](acceptance.md)。
@@ -47,7 +49,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/build_deb.py
 
 ## v0.4.0-rc.2 构建检查变更
 
-冻结自测增加默认坐标流程与合成 Nikon TIFF/NEF 容器的 GPS 日期/卫星/基准和数据保护检查，共 18 类；不安装或调用 RAW 显影库。BUILD_INFO 增加 raw 范围标记，NEF 不再宣称仅限 Z5。真实 Z5/Z6 III 私人样片只在本地验证，CI 和发行包均不包含。格式能力与实测范围见 [NEF 兼容说明](nef-gps-compatibility.md)。历史版本的检查仍使用其标签对应 checkout。
+冻结自测增加默认坐标流程与合成 Nikon TIFF/NEF 容器的 GPS 日期/卫星/基准和数据保护检查，共 17 类；不安装或调用 RAW 显影库。BUILD_INFO 增加 raw 范围标记，NEF 不再宣称仅限 Z5。真实 Z5/Z6 III 私人样片只在本地验证，CI 和发行包均不包含。格式能力与实测范围见 [NEF 兼容说明](nef-gps-compatibility.md)。历史版本的检查仍使用其标签对应 checkout。
 
 ## v0.4.0-rc.3 流程布局检查
 
