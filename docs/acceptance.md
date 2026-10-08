@@ -457,3 +457,10 @@ EXE 未签名；特殊 Windows 临时路径仍可能要求可写 ASCII TEMP。�
 - [v0.4.0-rc.4](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.4) 已公开发布，含 EXE、ZIP、DEB、BUILD_INFO、SHA256SUMS、第三方声明和许可归档共 7 份附件。公开 Windows EXE 校验 SHA256 和源身份后，在中文含空格下载目录执行全部 19 类离线自检成功，包含 editing_list_warnings；日志保存在忽略的 build/rc4-release.log。
 - 全部 7 份附件已从公开 Release 下载到忽略的 build/rc4-published-download；在标签对应源提交执行 check_release.py，全部哈希、版本/标签、源 SHA 和固定工具链校验通过。Windows ZIP 完整性/公共资源审计（1370 项）、LICENSES.zip 完整性和两平台来源清单（560 项）通过；公开 DEB 解包后的资源审计（992 文件）通过，未包含私人照片/字体/签名、RAW 显影库或原有 demo。
 - 实际公开 DEB 解包程序通过全部 19 类离线自检，包含 editing_list_warnings；日志位于忽略的 build/rc4-published-deb-smoke.log。EXE 仍未签名；报错中的共享原图未实测，验证依据为真实 ExifTool 合成用例和发行包实际自检，不扩展 Nikon/Windows 人工实测范围。
+### 2026-10-09 P0：性能基准与实施门禁
+
+按用户要求先提交/推送 `docs/plan.md` 第 13 节（`b647d25`），再实施；Windows 测试反馈之前不运行正式远端构建、不创建标签或 Release。既有未跟踪 Linux demo 保持原状，不进入本任务提交。
+
+新增 `scripts/benchmark_pipeline.py`：固定种子的噪声平铺 JPEG（5038×3363）、自有合成字体/签名；每流程 3 张照片、3 轮，每轮新 Python 进程，磁盘缓存未主动清空。记录预检/执行、ExifTool 次数/时间、主进程 VmHWM，RSS 不包含 ExifTool 子进程，不解释为阶段瞬时峰值。脚本 Ruff/格式检查通过。原始 JSON 只保留在忽略目录 `build/performance/`。
+
+基线中位数：GPS-only 预检 0.413 秒、处理 1.840 秒、主进程峰值 150.0 MiB；水印-only 4.121 秒、8.753 秒、360.8 MiB；坐标＋水印 4.573 秒、10.553 秒、361.2 MiB。基线使用现有源码 `b647d25`，不等同于真实混合照片或 Windows 性能。尚未实施性能优化、构建测试 EXE 或进行用户 Windows 验收。
