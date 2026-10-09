@@ -504,3 +504,11 @@ JPEG 实际解码、方向、ICC、像素上限及作业素材 SHA-256 前后检
 JPEG 预检解码全部像素并建立源 ICC 到 sRGB 的转换以验证兼容性，返回按 Orientation 1–8 归一化后的尺寸；仅省去预检中的整幅方向拷贝和 ICC 像素转换，实际导出及预览仍执行原转换。覆盖坏 ICC、ICC/CMYK 模式不匹配、无 ICC 的 CMYK、保留有效头部的截断 JPEG 和全部方向尺寸，像素上限及素材检查保留。
 
 相关图片/真实流水线/主窗口回归 35 passed，Ruff/格式（96 文件）及源码 mypy（41 文件）通过。首次本地 GUI 运行因未设无屏幕 Qt 环境而在 QApplication 初始化中止；设置 `QT_QPA_PLATFORM=offscreen` 后完整重跑通过，不跳过 GUI 测试。Windows 字体修复已单独推送为 `c8c5072`；端到端公平基准、完整回归及新 EXE 继续执行。
+
+### 2026-10-09 P4：完整回归、性能比较及候选版本
+
+本地非 RAW/非视觉回归 288 passed、2 Windows 专属 skipped、9 deselected；另外执行全部 8 项真实 NEF 回归通过。19 类源码离线自检通过，Ruff/格式（96 文件）及 mypy（41 源文件）通过。Windows 源码 CI：字体修复 [37865956044](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/37865956044)、预检优化 [37866081228](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/37866081228)、基准原型 [37866374830](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/37866374830) 全部成功。
+
+同批合成输入三轮中位数与 P0 比较，组合预检 4.573→1.614 秒，处理 10.553→6.281 秒，主进程峰值 361.2→281.3 MiB。双线程组合处理 4.338 秒，峰值升至 478.5 MiB；应用保留串行，未用小批基准替代并行取消/关闭验收。完整口径和三流程结果见 `docs/performance.md`；报告为本地忽略的 validated-serial/validated-parallel JSON，不上传素材/日志。
+
+为新 Windows 测试 EXE 更新候选版本 0.4.0rc5，不创建标签或 Release。Python/Qt 已在本地 Wine 11 临时环境成功加载，尚未记为 EXE 已完成；构建及冻结自检继续，用户原生 Windows 验收未进行。

@@ -648,3 +648,5 @@ Get-FileHash dist/AutoImageMarkTool.exe -Algorithm SHA256
 临时 Wine 9.0 已在 `/tmp/aim-windows-build/` 下载/解包，尚未能启动完整 Windows API 环境（builtin DLL 初始化失败），未安装 Windows Python、未生成 EXE；不能把这条路径记为构建成功。恢复后继续检查可用本地 Windows 构建路径，确有环境限制时再向用户确认具体方案；不擅自用正式远端构建替代 P5。P6 始终等待用户 Windows 验收，不得预先记为通过。
 
 恢复记录：账户重置后剩余恰好 95%，用户明确再次要求“继续工作”，据此恢复本次任务；后续低于 5% 的暂停条件保留。P3 局部合成与受限字体/缩放签名缓存已完成，62 项相关回归及静态检查通过，进入 P4。本机发现既有 `aim-wine-pyinstaller:prototype` 容器镜像，P5 先核验其本地 Windows 工具链，不以镜像存在代替 EXE 构建成功。
+
+P3 已提交为 `2d83214`，Windows 字体源句柄修复 `c8c5072` 和完整解码但省去整图转换的预检优化 `a05fa6d` 已分别提交/推送。P4 基准原型 `a91e604` 已推送；三次原生 Windows 源码 CI 均成功。本地非 RAW 回归 288 passed、2 平台 skipped，真实 NEF 回归 8 passed，19 类源码自检和静态检查通过。公平串行/双线程比较及内存取舍见 `docs/performance.md`，应用维持串行。P5 使用新候选版本 0.4.0rc5 本地构建；Wine 11 已能启动固定 Python/Qt，仍待产物冻结检查和审计，P6 继续等待用户 Windows 验收。
