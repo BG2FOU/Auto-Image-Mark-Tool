@@ -512,3 +512,15 @@ JPEG 预检解码全部像素并建立源 ICC 到 sRGB 的转换以验证兼容�
 同批合成输入三轮中位数与 P0 比较，组合预检 4.573→1.614 秒，处理 10.553→6.281 秒，主进程峰值 361.2→281.3 MiB。双线程组合处理 4.338 秒，峰值升至 478.5 MiB；应用保留串行，未用小批基准替代并行取消/关闭验收。完整口径和三流程结果见 `docs/performance.md`；报告为本地忽略的 validated-serial/validated-parallel JSON，不上传素材/日志。
 
 为新 Windows 测试 EXE 更新候选版本 0.4.0rc5，不创建标签或 Release。Python/Qt 已在本地 Wine 11 临时环境成功加载，尚未记为 EXE 已完成；构建及冻结自检继续，用户原生 Windows 验收未进行。
+
+### 2026-10-09 P5：新 Windows 单文件测试包完成
+
+从源提交 `1205084aeff2f2f5ed8564e92641e8d801af2cc0` 的 Git 归档本地构建 0.4.0rc5 x64 单文件 EXE，逐一核对 138 个归档文件。使用 Windows Python 3.12.3（安装包固定 SHA 校验）、哈希锁定 wheels、PyInstaller 6.22.3、ExifTool 13.59；Windows 虚拟环境 pip check 通过。源提交原生 Windows CI [37866816544](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/37866816544) 全部成功。
+
+本地 Wine 11 离线容器用于编译与冻结检查；额外 ICU 系统接口适配仅存在临时构建环境，未进入 EXE。首次编译成功后的冻结自检因容器 POSIX locale 无法创建中文路径而失败，设 UTF-8 并重启本任务 Wine 会话后，对同一 EXE 完整重跑 19 类检查通过；复制 EXE 到中文含空格目录再完整执行 19 类检查通过。未跳过或放宽检查；这些是兼容环境验证，不代表用户原生 Windows 桌面已验收。
+
+归档检查 980 项、Python 模块 894 项，未包含私人照片/字体/签名、RAW 显影库、Linux demo、Wine 系统替代 DLL 或临时 ICU 文件；许可收集包含 418 个文本路径。EXE 为 72,349,917 字节，SHA-256：`8074e9d5cc953fd5b2ceba3d58afdb414dbd75de2201bbf071a3faa4f71ff682`。
+
+交付在本地忽略目录 `build/performance-exe/`：`AutoImageMarkTool-0.4.0rc5-test-windows-x64.exe`、同名 ZIP、BUILD_INFO.json、SHA256SUMS.txt 和 README-test.txt。ZIP 仅装入 EXE、构建记录、校验和测试说明；ZIP 完整性与内部 EXE 哈希一致性通过。二进制及运行日志不提交 Git；提交/推送本验收节点说明。
+
+P0–P5 已完成，P6 等待用户 Windows 实测反馈。尚未创建 rc.5 标签、触发正式远端发布构建或创建 Release；公开版本仍为 rc.4。用户确认测试通过后再继续正式发布流程。
