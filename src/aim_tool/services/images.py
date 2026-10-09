@@ -11,7 +11,12 @@ from tempfile import TemporaryDirectory
 from PIL import Image, ImageCms, ImageOps
 
 from aim_tool.services.output import commit_no_overwrite
-from aim_tool.services.watermark import WatermarkConfig, WatermarkResources, render_watermark_layer
+from aim_tool.services.watermark import (
+    WatermarkConfig,
+    WatermarkResources,
+    composite_watermark,
+    render_watermark_region,
+)
 
 MAX_JPEG_PIXELS = 60_000_000
 
@@ -62,11 +67,9 @@ def watermark_jpeg_pixels(
 ) -> PreparedJpeg:
     """Return watermarked RGB pixels and their matching sRGB ICC, without saving."""
     prepared = prepare_jpeg(path)
-    overlay = render_watermark_layer(prepared.pixels.size, config, resources)
-    composited = Image.alpha_composite(prepared.pixels.convert("RGBA"), overlay)
-    return PreparedJpeg(
-        composited.convert("RGB"), prepared.srgb_icc, prepared.dpi, prepared.warnings
-    )
+    region = render_watermark_region(prepared.pixels.size, config, resources)
+    composited = composite_watermark(prepared.pixels, region)
+    return PreparedJpeg(composited, prepared.srgb_icc, prepared.dpi, prepared.warnings)
 
 
 def _digest(path: Path) -> bytes:

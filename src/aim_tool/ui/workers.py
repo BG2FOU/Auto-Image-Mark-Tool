@@ -162,7 +162,11 @@ class PreviewWorker(QThread):
 
     def run(self) -> None:
         from aim_tool.services.images import prepare_jpeg
-        from aim_tool.services.watermark import render_watermark_layer, watermark_scale
+        from aim_tool.services.watermark import (
+            composite_watermark,
+            render_watermark_region,
+            watermark_scale,
+        )
 
         request = self.request
         try:
@@ -179,9 +183,9 @@ class PreviewWorker(QThread):
                     )
                 if self.cancelled.is_set():
                     return
-                overlay = render_watermark_layer(size, config, request.settings.resources)
-                bounds = overlay.getchannel("A").getbbox()
-                pixels = Image.alpha_composite(pixels.convert("RGBA"), overlay).convert("RGB")
+                region = render_watermark_region(size, config, request.settings.resources)
+                bounds = region.bounds
+                pixels = composite_watermark(pixels, region)
                 scale = watermark_scale(size, config)
                 date_source = {
                     "manual": "手动",

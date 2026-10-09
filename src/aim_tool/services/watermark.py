@@ -3,18 +3,23 @@
 from __future__ import annotations
 
 import math
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from threading import Lock
 from typing import Literal
 
 from PIL import Image, ImageDraw, ImageFont
 
 from aim_tool.domain.validation import validate_watermark_fields
-from aim_tool.services.fonts import load_checked_font
+from aim_tool.services.fonts import ResourceStamp, load_checked_font, resource_stamp
 
 Anchor = Literal["top_left", "top_right", "bottom_left", "bottom_right"]
 Category = Literal["aviation", "railway", "landscape"]
+_SIGNATURE_CACHE_LIMIT = 8 * 1024 * 1024
+_SIGNATURE_CACHE: OrderedDict[tuple[Path, ResourceStamp, int, float], Image.Image] = OrderedDict()
+_SIGNATURE_CACHE_LOCK = Lock()
 
 
 @dataclass(frozen=True)
@@ -100,6 +105,14 @@ def _spans(config: WatermarkConfig) -> list[tuple[str, bool]]:
 def _scaled_signature(
     path: Path, width: int, opacity: float, *, max_size: tuple[int, int] | None = None
 ) -> Image.Image:
+    key = path.resolve(), resource_stamp(path), width, opacity
+    with _SIGNATURE_CACHE_LOCK:
+        cached = _SIGNATURE_CACHE.get(key)
+        if cached is not None:
+            if max_size is not None and (cached.width > max_size[0] or cached.height > max_size[1]):
+                raise ValueError("Signature does not fit this image")
+            _SIGNATURE_CACHE.move_to_end(key)
+            return cached.copy()
     try:
         with Image.open(path) as original:
             if original.width * original.height > 16_000_000:
@@ -118,6 +131,18 @@ def _scaled_signature(
     signature = signature.convert("RGBA")
     alpha = signature.getchannel("A").point(lambda value: round(value * opacity))
     signature.putalpha(alpha)
+    # Keep only scaled pixels; never retain the potentially large original.
+    byte_size = signature.width * signature.height * 4
+    if byte_size <= _SIGNATURE_CACHE_LIMIT:
+        with _SIGNATURE_CACHE_LOCK:
+            _SIGNATURE_CACHE[key] = signature.copy()
+            _SIGNATURE_CACHE.move_to_end(key)
+            while (
+                len(_SIGNATURE_CACHE) > 16
+                or sum(item.width * item.height * 4 for item in _SIGNATURE_CACHE.values())
+                > _SIGNATURE_CACHE_LIMIT
+            ):
+                _SIGNATURE_CACHE.popitem(last=False)
     return signature
 
 
@@ -134,10 +159,29 @@ def watermark_scale(size: tuple[int, int], config: WatermarkConfig) -> float:
     )
 
 
-def render_watermark_layer(
+@dataclass(frozen=True)
+class WatermarkRegion:
+    pixels: Image.Image
+    position: tuple[int, int]
+
+    @property
+    def bounds(self) -> tuple[int, int, int, int]:
+        x, y = self.position
+        return x, y, x + self.pixels.width, y + self.pixels.height
+
+
+def composite_watermark(pixels: Image.Image, region: WatermarkRegion) -> Image.Image:
+    """Composite the small region onto owned RGB pixels without full-image RGBA buffers."""
+    local = pixels.crop(region.bounds).convert("RGBA")
+    composited = Image.alpha_composite(local, region.pixels).convert("RGB")
+    pixels.paste(composited, region.position)
+    return pixels
+
+
+def render_watermark_region(
     size: tuple[int, int], config: WatermarkConfig, resources: WatermarkResources
-) -> Image.Image:
-    """Render an RGBA layer in final image coordinates; never modify assets."""
+) -> WatermarkRegion:
+    """Render only the visible watermark and its final image coordinates."""
     _validate(config)
     width, height = size
     scale = watermark_scale(size, config)
@@ -206,6 +250,14 @@ def render_watermark_layer(
     ) + offset_y
     if x < 0 or y < 0 or x + group.width > width or y + group.height > height:
         raise ValueError("Watermark does not fit this image")
+    return WatermarkRegion(group, (x, y))
+
+
+def render_watermark_layer(
+    size: tuple[int, int], config: WatermarkConfig, resources: WatermarkResources
+) -> Image.Image:
+    """Keep the full RGBA layer interface for existing callers and geometry checks."""
+    region = render_watermark_region(size, config, resources)
     overlay = Image.new("RGBA", size)
-    overlay.alpha_composite(group, (x, y))
+    overlay.alpha_composite(region.pixels, region.position)
     return overlay

@@ -80,3 +80,21 @@ def test_long_content_is_rejected_before_allocating_a_huge_layer(
     config = WatermarkConfig("aviation", "B" * 10000, date(2026, 9, 26))
     with pytest.raises(ValueError, match="does not fit"):
         render_watermark_layer((1007, 672), config, synthetic_watermark_resources)
+
+
+@pytest.mark.parametrize("anchor", ("top_left", "top_right", "bottom_left", "bottom_right"))
+def test_local_composite_matches_full_rgba_pixels(
+    synthetic_watermark_resources: WatermarkResources, anchor: str
+) -> None:
+    from aim_tool.services.watermark import composite_watermark, render_watermark_region
+
+    config = WatermarkConfig("aviation", "B-1356", date(2026, 9, 26), anchor=anchor)
+    pixels = Image.linear_gradient("L").resize((1007, 672)).convert("RGB")
+    overlay = render_watermark_layer(pixels.size, config, synthetic_watermark_resources)
+    expected = Image.alpha_composite(pixels.convert("RGBA"), overlay).convert("RGB")
+    region = render_watermark_region(pixels.size, config, synthetic_watermark_resources)
+    assert region.pixels.width < pixels.width
+    assert region.pixels.height < pixels.height
+    assert region.bounds == overlay.getchannel("A").getbbox()
+    actual = composite_watermark(pixels, region)
+    assert actual.tobytes() == expected.tobytes()

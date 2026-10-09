@@ -240,7 +240,7 @@ class WatermarkStep:
         if item.source.suffix.lower() == ".nef":
             raise ValueError("NEF watermark processing is deferred; select coordinates only")
         from aim_tool.services.images import prepare_jpeg
-        from aim_tool.services.watermark import render_watermark_layer
+        from aim_tool.services.watermark import render_watermark_region
 
         metadata = self.tool.metadata(
             item.source, "-ExifIFD:DateTimeOriginal", "-ExifIFD:CreateDate", "-GPS:all"
@@ -260,7 +260,7 @@ class WatermarkStep:
             paths.append(self.resources.chinese_font)
         fingerprints = tuple((path, _sha256(path)) for path in paths)
         prepared = prepare_jpeg(item.source)
-        render_watermark_layer(prepared.pixels.size, config, self.resources)
+        render_watermark_region(prepared.pixels.size, config, self.resources)
         if any(_sha256(path) != digest for path, digest in fingerprints):
             raise ValueError("Watermark asset changed during preflight")
         self._prepared[item.id] = _PreparedWatermark(item, spec, config, date_source, fingerprints)
