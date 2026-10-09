@@ -29,6 +29,32 @@ class PreparedJpeg:
     warnings: tuple[str, ...]
 
 
+def validate_jpeg(path: Path) -> tuple[int, int]:
+    """Decode every pixel and validate the ICC transform without rendering full RGB output."""
+    try:
+        with Image.open(path) as original:
+            if original.format != "JPEG":
+                raise ValueError("Watermark preview needs a JPEG input")
+            if original.width * original.height > MAX_JPEG_PIXELS:
+                raise ValueError("JPEG exceeds the 60 megapixel watermark limit")
+            original.load()  # A header-only check would miss truncated/corrupt image data.
+            embedded_icc = original.info.get("icc_profile")
+            if embedded_icc:
+                try:
+                    source = ImageCms.ImageCmsProfile(BytesIO(embedded_icc))
+                    target = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB"))
+                    ImageCms.buildTransform(source, target, original.mode, "RGB")
+                except (OSError, ValueError, ImageCms.PyCMSError) as error:
+                    raise ValueError("JPEG has an unreadable ICC profile") from error
+            elif original.mode not in {"RGB", "L"}:
+                raise ValueError("JPEG without ICC has an ambiguous color mode")
+            if original.getexif().get(274) in {5, 6, 7, 8}:
+                return original.height, original.width
+            return original.size
+    except Image.DecompressionBombError as error:
+        raise ValueError("JPEG exceeds the 60 megapixel watermark limit") from error
+
+
 def prepare_jpeg(path: Path) -> PreparedJpeg:
     """Apply EXIF orientation once, then convert an embedded source profile to sRGB."""
     try:

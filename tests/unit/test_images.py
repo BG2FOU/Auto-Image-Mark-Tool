@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from PIL import Image, ImageCms
 
-from aim_tool.services.images import prepare_jpeg
+from aim_tool.services.images import prepare_jpeg, validate_jpeg
 
 
 def test_orientation_is_applied_once_and_missing_profile_is_reported(tmp_path: Path) -> None:
@@ -38,6 +38,36 @@ def test_untagged_cmyk_is_rejected(tmp_path: Path) -> None:
     Image.new("CMYK", (24, 16), (10, 20, 30, 40)).save(source)
     with pytest.raises(ValueError, match="ambiguous color mode"):
         prepare_jpeg(source)
+    with pytest.raises(ValueError, match="ambiguous color mode"):
+        validate_jpeg(source)
+
+
+@pytest.mark.parametrize("profile", (b"corrupt ICC", "wrong-mode"))
+def test_preflight_rejects_broken_and_mode_mismatched_profiles(
+    tmp_path: Path, profile: bytes | str
+) -> None:
+    source = tmp_path / "bad-profile.jpg"
+    if isinstance(profile, str):
+        profile = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+        mode = "CMYK"
+    else:
+        mode = "RGB"
+    Image.new(mode, (24, 16)).save(source, icc_profile=profile)
+    for check in (prepare_jpeg, validate_jpeg):
+        with pytest.raises(ValueError, match="unreadable ICC"):
+            check(source)
+
+
+def test_preflight_decodes_pixels_and_rejects_truncation(tmp_path: Path) -> None:
+    source = tmp_path / "truncated.jpg"
+    Image.new("RGB", (300, 200)).save(source)
+    data = source.read_bytes()
+    source.write_bytes(data[:-100])
+    # Header and dimensions are still available, but the decoded image is corrupt.
+    with Image.open(source) as image:
+        assert image.size == (300, 200)
+    with pytest.raises(OSError):
+        validate_jpeg(source)
 
 
 @pytest.mark.parametrize(
@@ -70,6 +100,7 @@ def test_all_exif_orientations_transform_pixels_once(
     image.save(source, quality=100, subsampling=0, exif=exif)
     prepared = prepare_jpeg(source)
     assert prepared.pixels.size == size
+    assert validate_jpeg(source) == size
     assert all(
         abs(actual - expected) <= 3
         for actual, expected in zip(prepared.pixels.getpixel((5, 5)), top_left_color, strict=True)
