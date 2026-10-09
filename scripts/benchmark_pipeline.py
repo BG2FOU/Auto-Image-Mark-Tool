@@ -10,15 +10,17 @@ import statistics
 import subprocess
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Lock
 from time import perf_counter
 
 from PIL import Image, ImageCms
 
-from aim_tool.domain import BatchJob, ItemStatus, PhotoItem
+from aim_tool.domain import BatchJob, ItemResult, ItemStatus, PhotoItem
 from aim_tool.self_test_jpg import _resources
 from aim_tool.services.exiftool import ExifTool
-from aim_tool.workflow.engine import build_plan, run_plan
+from aim_tool.workflow.engine import ExecutionPlan, PlannedItem, build_plan, run_plan
 from aim_tool.workflow.registry import StepRegistry, preset
 from aim_tool.workflow.steps import ExportStep, LocationStep, RawDevelopStep, WatermarkStep
 
@@ -34,7 +36,7 @@ def peak_rss_mib() -> float | None:
     return None
 
 
-def measure(flow: str, count: int, size: tuple[int, int]) -> dict[str, object]:
+def measure(flow: str, count: int, size: tuple[int, int], workers: int = 1) -> dict[str, object]:
     with tempfile.TemporaryDirectory(prefix="aim-benchmark-") as name:
         root = Path(name)
         resources = _resources(root)
@@ -65,6 +67,7 @@ def measure(flow: str, count: int, size: tuple[int, int]) -> dict[str, object]:
             )
         calls = 0
         exif_seconds = 0.0
+        metrics_lock = Lock()
 
         class MeasuredTool(ExifTool):
             def _run(self, *args: str, **kwargs: object) -> str:
@@ -73,8 +76,10 @@ def measure(flow: str, count: int, size: tuple[int, int]) -> dict[str, object]:
                 try:
                     return super()._run(*args, **kwargs)  # type: ignore[arg-type]
                 finally:
-                    calls += 1
-                    exif_seconds += perf_counter() - start
+                    elapsed = perf_counter() - start
+                    with metrics_lock:
+                        calls += 1
+                        exif_seconds += elapsed
 
         # The adapter default is the compatibility mode; use the application's mode
         # once persistent sessions are supported by this checkout.
@@ -99,13 +104,23 @@ def measure(flow: str, count: int, size: tuple[int, int]) -> dict[str, object]:
             calls = 0
             exif_seconds = 0.0
             start = perf_counter()
-            results = run_plan(plan)
+            if workers == 1:
+                results = run_plan(plan)
+            else:
+                # Benchmark-only prototype; the application remains serial.
+                def execute_item(item: PlannedItem) -> tuple[ItemResult, ...]:
+                    return run_plan(ExecutionPlan((item,)))
+
+                with ThreadPoolExecutor(max_workers=workers) as pool:
+                    batches = list(pool.map(execute_item, plan.items))
+                results = tuple(result for batch in batches for result in batch)
             execution = perf_counter() - start
             if any(result.status != ItemStatus.SUCCESS for result in results):
                 raise RuntimeError(str([result.error for result in results]))
             return {
                 "flow": flow,
                 "count": count,
+                "workers": workers,
                 "size": size,
                 "input_bytes_each": source.stat().st_size,
                 "preflight_seconds": preflight,
@@ -126,6 +141,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--count", type=int, default=3)
     parser.add_argument("--rounds", type=int, default=3)
+    parser.add_argument("--workers", type=int, choices=(1, 2), default=1)
     parser.add_argument("--width", type=int, default=5038)
     parser.add_argument("--height", type=int, default=3363)
     parser.add_argument("--report", type=Path)
@@ -136,7 +152,7 @@ def main() -> int:
     if min(args.count, args.rounds, args.width, args.height) < 1:
         parser.error("Counts and dimensions must be positive")
     if args.child:
-        print(json.dumps(measure(args.child, args.count, (args.width, args.height))))
+        print(json.dumps(measure(args.child, args.count, (args.width, args.height), args.workers)))
         return 0
     if args.report is None:
         parser.error("--report is required")
@@ -155,6 +171,8 @@ def main() -> int:
                     str(args.width),
                     "--height",
                     str(args.height),
+                    "--workers",
+                    str(args.workers),
                 ],
                 cwd=ROOT,
                 text=True,
@@ -182,8 +200,10 @@ def main() -> int:
         ).strip(),
         "python": sys.version,
         "platform": sys.platform,
+        "workers": args.workers,
         "scope": "Generated tiled-noise JPEGs and synthetic assets; filesystem cache not flushed; "
-        "fresh Python process per round; RSS excludes ExifTool children and is not per phase.",
+        "fresh Python process per round; RSS excludes ExifTool children and is not per phase; "
+        "concurrent ExifTool request time includes session-lock wait.",
         "records": records,
         "medians": summary,
     }
