@@ -1,6 +1,7 @@
 """Bounded resource reuse cannot conceal edits, missing glyphs, or canvas limits."""
 
 import os
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -26,16 +27,37 @@ def test_font_replacement_invalidates_coverage_with_restored_mtime(
     synthetic_watermark_resources: WatermarkResources,
 ) -> None:
     path = synthetic_watermark_resources.latin_font
-    fonts.load_checked_font(path, 0, "A", 20)
+    cached = fonts.load_checked_font(path, 0, "A", 20)
     stat = path.stat()
-    font = TTFont(path)
+    font = TTFont(BytesIO(path.read_bytes()))
     for table in font["cmap"].tables:
         table.cmap.pop(ord("A"), None)
-    font.save(path)
+    replacement = BytesIO()
+    font.save(replacement)
     font.close()
+    path.write_bytes(replacement.getvalue())
     os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    assert cached.getbbox("A") is not None
     with pytest.raises(ValueError, match="missing glyphs"):
         fonts.load_checked_font(path, 0, "A", 20)
+
+
+def test_font_cache_bounds_bytes_and_releases_source_handle(
+    synthetic_watermark_resources: WatermarkResources, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = synthetic_watermark_resources.latin_font
+    monkeypatch.setattr(fonts, "_FONT_CACHE_LIMIT", path.stat().st_size * 2)
+    with fonts._FONT_CACHE_LOCK:
+        fonts._FONT_CACHE.clear()
+    retained = [fonts.load_checked_font(path, 0, "ABC", size) for size in range(20, 24)]
+    assert len(fonts._FONT_CACHE) == 2
+    assert sum(len(font.font_bytes) for font in fonts._FONT_CACHE.values()) <= (
+        fonts._FONT_CACHE_LIMIT
+    )
+    renamed = path.with_name("renamed.ttf")
+    path.rename(renamed)
+    renamed.unlink()
+    assert all(font.getbbox("ABC") is not None for font in retained)
 
 
 def test_signature_reuse_is_bounded_and_returns_private_pixels(

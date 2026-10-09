@@ -2,16 +2,23 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
 from functools import lru_cache
 from hashlib import sha256
+from io import BytesIO
 from pathlib import Path
-from threading import get_ident
+from threading import Lock, get_ident
 
 from fontTools.ttLib import TTFont, TTLibError  # type: ignore[import-untyped]
 from PIL import ImageFont
 
 type ResourceStamp = tuple[int, int, int, int, int, str]
+type RenderFontKey = tuple[Path, int, int, ResourceStamp, int]
+
+_FONT_CACHE_LIMIT = 16 * 1024 * 1024
+_FONT_CACHE: OrderedDict[RenderFontKey, ImageFont.FreeTypeFont] = OrderedDict()
+_FONT_CACHE_LOCK = Lock()
 
 
 @dataclass(frozen=True)
@@ -49,15 +56,31 @@ def _glyphs(path: Path, face: int, stamp: ResourceStamp) -> frozenset[int]:
         font.close()
 
 
-@lru_cache(maxsize=32)
 def _render_font(
     path: Path, face: int, pixels: int, stamp: ResourceStamp, thread_id: int
 ) -> ImageFont.FreeTypeFont:
-    # Do not share mutable FreeType objects between GUI worker threads.
-    try:
-        return ImageFont.truetype(str(path), pixels, index=face)
-    except OSError as error:
-        raise ValueError(f"Font cannot be rendered: {path}#{face}") from error
+    # Keep objects thread-local and release source handles so Windows can replace fonts.
+    key = (path, face, pixels, stamp, thread_id)
+    with _FONT_CACHE_LOCK:
+        if key in _FONT_CACHE:
+            _FONT_CACHE.move_to_end(key)
+            return _FONT_CACHE[key]
+        try:
+            with path.open("rb") as source:
+                font = ImageFont.truetype(BytesIO(source.read()), pixels, index=face)
+        except OSError as error:
+            raise ValueError(f"Font cannot be rendered: {path}#{face}") from error
+        # Bound retained font bytes as well as entry count; native glyph memory is separate.
+        size = len(font.font_bytes)
+        if size <= _FONT_CACHE_LIMIT:
+            while _FONT_CACHE and (
+                len(_FONT_CACHE) >= 32
+                or sum(len(item.font_bytes) for item in _FONT_CACHE.values()) + size
+                > _FONT_CACHE_LIMIT
+            ):
+                _FONT_CACHE.popitem(last=False)
+            _FONT_CACHE[key] = font
+        return font
 
 
 def _open_font(path: Path, face: int) -> TTFont:
