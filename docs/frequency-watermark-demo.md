@@ -39,3 +39,22 @@
 ## 记录
 
 - F0：计划与范围已固定；已检查素材和现有导出位置，尚未修改正式功能。
+
+## 单张实验使用
+
+在已安装项目开发依赖的 Python 3.12 环境中运行。NumPy 来自现有 rawpy 依赖；本次验证版本为 NumPy 2.5.3、Pillow 12.3.0。脚本不需要 RAW 或联网。
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/frequency_watermark_demo.py embed \
+  --source /path/to/local-photo.jpg --signature /path/to/local-signature.png \
+  --output-dir demo-output/my-new-run --algorithm dct --strength 16
+
+PYTHONPATH=src .venv/bin/python scripts/frequency_watermark_demo.py extract \
+  --source demo-output/my-new-run/watermarked.jpg \
+  --sidecar demo-output/my-new-run/watermarked.json \
+  --output demo-output/my-new-run/independent-extraction.png
+```
+
+输出目录必须不存在，提取 PNG 也拒绝覆盖。`watermarked.json` 是含密钥与提取参数的本地 sidecar，须自行保管；它不含原始图像或签名比特。签名 PNG 展示真实嵌入图与保存后恢复图。`--restore-size` 仅用于已知原尺寸辅助提取，不能描述为自动抗几何变换。
+
+F1 验证使用完全合成的 RGB 和签名，覆盖两种算法的 JPEG 往返、错误密钥/未嵌入负例、原尺寸限制、无效强度/容量拒绝、稀疏签名的笔画指标，以及 SSIM 与独立逐窗口公式的一致性和条带边界。CLI 验证输入不变、已有输出拒绝覆盖。实验模块在 `scripts/` 下，不进入应用 wheel。
