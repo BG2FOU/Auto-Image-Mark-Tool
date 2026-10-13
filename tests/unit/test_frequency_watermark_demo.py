@@ -159,10 +159,10 @@ def test_cli_refuses_existing_output_and_preserves_source(tmp_path: Path) -> Non
         "--strength",
         "24",
     ]
-    first = subprocess.run(command, capture_output=True, text=True)
+    first = subprocess.run(command, capture_output=True, text=True, check=False)
     assert first.returncode == 0, first.stderr
     marked = (output / "watermarked.jpg").read_bytes()
-    second = subprocess.run(command, capture_output=True, text=True)
+    second = subprocess.run(command, capture_output=True, text=True, check=False)
     assert second.returncode != 0
     assert (output / "watermarked.jpg").read_bytes() == marked
     assert source.read_bytes() == before_source
