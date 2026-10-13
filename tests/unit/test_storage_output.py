@@ -105,6 +105,30 @@ def test_watermark_settings_corruption_does_not_overwrite_backup(
     assert store.load() == first
 
 
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"digital_enabled": 1},
+        {"digital_algorithm": "auto"},
+        {"digital_level": "maximum"},
+        {"digital_enabled": True, "digital_key": "bad"},
+    ],
+)
+def test_invalid_digital_settings_do_not_replace_file_or_backup(
+    tmp_path: Path, synthetic_watermark_resources: WatermarkResources, params: dict
+) -> None:
+    from aim_tool.services.storage import WatermarkSettings, WatermarkSettingsStore
+
+    store = WatermarkSettingsStore(tmp_path / "settings.json")
+    store.save(WatermarkSettings(synthetic_watermark_resources, {"font_size_pt": 24}))
+    before = store.path.read_bytes()
+    with pytest.raises(ValueError):
+        store.save(WatermarkSettings(synthetic_watermark_resources, params))
+    assert store.path.read_bytes() == before
+    assert not store.backup.exists()
+    assert not list(tmp_path.glob(".aim-settings-*"))
+
+
 def test_legacy_location_without_altitude_defaults_zero_and_new_values_persist(
     tmp_path: Path,
 ) -> None:

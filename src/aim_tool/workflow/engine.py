@@ -247,6 +247,16 @@ def run_plan(
                             warnings=tuple(warnings),
                         )
                     )
+        except InterruptedError as error:
+            results.append(
+                ItemResult(
+                    photo.id,
+                    ItemStatus.CANCELLED if signal.is_set() else ItemStatus.FAILED,
+                    current_step=current_step,
+                    error=None if signal.is_set() else str(error),
+                    warnings=tuple(warnings),
+                )
+            )
         except Exception as error:  # noqa: BLE001 - isolate a failed component to one item
             results.append(
                 ItemResult(

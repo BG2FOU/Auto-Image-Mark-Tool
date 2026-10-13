@@ -324,6 +324,9 @@ class WatermarkSettingsStore:
                 "jpeg_subsampling", 0
             ) not in {0, 1, 2}:
                 raise ConfigError("Invalid JPEG encoding settings")
+            from aim_tool.services.frequency_watermark import digital_config
+
+            digital_config(params)
             return WatermarkSettings(
                 WatermarkResources(
                     Path(assets["latin_font"]),

@@ -31,6 +31,7 @@ from aim_tool.domain import BatchJob, ItemResult, ItemStatus, PhotoItem
 from aim_tool.domain.dates import parse_capture_date
 from aim_tool.domain.models import Parameter
 from aim_tool.domain.validation import validate_altitude, validate_coordinates
+from aim_tool.services.frequency_watermark import digital_defaults
 from aim_tool.services.resources import default_local_resources
 from aim_tool.services.storage import ConfigStore, WatermarkSettings, WatermarkSettingsStore
 from aim_tool.services.table_import import apply_import, apply_manual_date
@@ -101,6 +102,15 @@ class MainWindow(QMainWindow):
         except (OSError, ValueError) as error:
             self.settings = WatermarkSettings(default_local_resources())
             initial_error = f"个人默认无法读取：{error}。当前临时使用项目默认，请在设置中恢复备份；损坏文件未改动。"
+        try:
+            params = digital_defaults(self.settings.params)
+            migrated = WatermarkSettings(self.settings.resources, params)
+            needs_migration = params != dict(self.settings.params)
+            self.settings = migrated
+            if needs_migration and not initial_error:
+                self.settings_store.save(migrated)
+        except (OSError, ValueError) as error:
+            initial_error += f" 数字水印默认无法保存：{error}。处理前需保存有效的本地配置。"
         self._preflight_worker: PreflightWorker | None = None
         self._batch_worker: BatchWorker | None = None
         self._metadata_worker: MetadataWorker | None = None
@@ -204,6 +214,8 @@ class MainWindow(QMainWindow):
         table_hint.setObjectName("muted")
         photos_layout.addWidget(table_hint)
         self.workflow = WorkflowPanel(workflow_store)
+        self.workflow.digital.set_parameters(self.settings.params)
+        self.workflow.digital_changed.connect(self._digital_changed)
         self.workflow.changed.connect(self._workflow_changed)
         self.workflow.loaded.connect(self._load_params)
         self.workflow.save_requested.connect(self._save_workflow)
@@ -576,13 +588,45 @@ class MainWindow(QMainWindow):
         dialog = SettingsDialog(self.settings, self.settings_store, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.settings = dialog.settings()
+            self.workflow.digital.set_parameters(self.settings.params)
             self._refresh_date_policy()
             self._schedule_preview()
             self._message("已应用水印设置；导出仍需点击开始处理。")
 
     def _load_params(self, params: Mapping[str, Parameter]) -> None:
-        self.settings = WatermarkSettings(self.settings.resources, params)
+        try:
+            updated = digital_defaults(
+                params, existing_key=str(self.settings.params["digital_key"])
+            )
+            self.workflow.digital.set_parameters(updated)
+        except (KeyError, ValueError) as error:
+            self._message(f"水印预设未载入：{error}")
+            return
+        self.settings = WatermarkSettings(self.settings.resources, updated)
         self._refresh_date_policy()
+        self._schedule_preview()
+
+    def _persist_digital_defaults(self) -> None:
+        """Save only digital choices, preserving unrelated personal layout defaults."""
+        stored = self.settings_store.load()
+        params = dict(stored.params)
+        for name in ("digital_enabled", "digital_algorithm", "digital_level", "digital_key"):
+            params[name] = self.settings.params[name]
+        self.settings_store.save(WatermarkSettings(stored.resources, params))
+
+    def _digital_changed(self, changes: Mapping[str, Parameter]) -> None:
+        params = dict(self.settings.params)
+        params.update(changes)
+        try:
+            updated = digital_defaults(params)
+        except ValueError as error:
+            self._message(f"数字水印设置未应用：{error}")
+            return
+        self.settings = WatermarkSettings(self.settings.resources, updated)
+        try:
+            self._persist_digital_defaults()
+        except (OSError, ValueError) as error:
+            self._message(f"数字水印设置已应用，但个人默认未保存：{error}")
         self._schedule_preview()
 
     def _refresh_date_policy(self) -> None:
@@ -654,6 +698,10 @@ class MainWindow(QMainWindow):
                 raise ValueError("NEF 仅支持坐标写入；请选择坐标流程或取消勾选 NEF。")
             if not self.output_edit.text().strip():
                 raise ValueError("请选择输出目录")
+            if self.workflow.watermark.isChecked() and self.settings.params.get("digital_enabled"):
+                stored = self.settings_store.load()
+                if stored.params.get("digital_key") != self.settings.params.get("digital_key"):
+                    self._persist_digital_defaults()
             job = BatchJob(
                 photos, self.workflow.spec(self.settings.params), Path(self.output_edit.text())
             )

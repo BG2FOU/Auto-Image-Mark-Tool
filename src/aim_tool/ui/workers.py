@@ -186,6 +186,15 @@ class PreviewWorker(QThread):
                 region = render_watermark_region(size, config, request.settings.resources)
                 bounds = region.bounds
                 pixels = composite_watermark(pixels, region)
+                if config.digital is not None:
+                    from aim_tool.services.frequency_watermark import apply_signature
+
+                    pixels = apply_signature(
+                        pixels,
+                        config.digital,
+                        request.settings.resources.signature,
+                        cancelled=self.cancelled,
+                    )
                 scale = watermark_scale(size, config)
                 date_source = {
                     "manual": "手动",
@@ -194,6 +203,11 @@ class PreviewWorker(QThread):
                     "EXIF CreateDate": "EXIF 创建时间",
                 }.get(date_source, date_source)
                 caption += f"\n字号 {max(1, round(config.font_size_pt * config.base_ppi / 72 * scale))} px · 签名 {max(1, round(config.signature_width * scale))} px · {config.taken_on:%Y/%m/%d}（{date_source}）"
+                if config.digital is not None:
+                    level = {"low": "低档", "medium": "中档", "high": "高档"}[config.digital.level]
+                    caption += (
+                        f"\n数字水印 {config.digital.algorithm.upper()} · {level}（编码前预览）"
+                    )
             if self.cancelled.is_set():
                 return
             if bounds is not None:

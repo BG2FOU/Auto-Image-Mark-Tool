@@ -28,10 +28,12 @@ from PySide6.QtWidgets import (
 
 from aim_tool.domain.models import Parameter
 from aim_tool.services.fonts import identify_font
+from aim_tool.services.frequency_watermark import digital_defaults
 from aim_tool.services.resources import default_local_resources, identify_signature
 from aim_tool.services.storage import WatermarkSettings, WatermarkSettingsStore
 from aim_tool.services.templates import project_default_config
 from aim_tool.services.watermark import WatermarkResources
+from aim_tool.ui.digital_watermark_controls import DigitalWatermarkControls
 
 
 class SettingsDialog(QDialog):
@@ -151,6 +153,20 @@ class SettingsDialog(QDialog):
         output_note.setWordWrap(True)
         output_form.addRow(output_note)
         self.tabs.addTab(output_page, "颜色与导出")
+        digital_page = QWidget()
+        digital_form = QVBoxLayout(digital_page)
+        self.digital = DigitalWatermarkControls()
+        digital_form.addWidget(self.digital)
+        digital_note = QLabel(
+            "使用所选签名 PNG。默认 DCT 中档；导出后检查签名能否完整恢复。"
+            "像素变化、抗压缩和缩放后的恢复能力取决于算法与档位，可关闭附加。"
+            "提取密钥保存在本机配置中，恢复布局默认不会更换密钥。"
+        )
+        digital_note.setWordWrap(True)
+        digital_form.addWidget(digital_note)
+        digital_form.addStretch()
+        self.tabs.addTab(digital_page, "数字水印")
+        self._digital_key = str(digital_defaults(settings.params)["digital_key"])
         self.error_label = QLabel()
         self.error_label.setWordWrap(True)
         self.error_label.setStyleSheet("color:#b91c1c;")
@@ -201,6 +217,9 @@ class SettingsDialog(QDialog):
         self.quality.setValue(cast(int, settings.params.get("jpeg_quality", 95)))
         self.subsampling.setCurrentIndex(cast(int, settings.params.get("jpeg_subsampling", 0)))
         self.allow_create_date.setChecked(settings.params.get("allow_create_date") is True)
+        self.digital.set_parameters(settings.params)
+        if "digital_key" in settings.params:
+            self._digital_key = str(settings.params["digital_key"])
         self.error_label.clear()
 
     def settings(self) -> WatermarkSettings:
@@ -222,6 +241,8 @@ class SettingsDialog(QDialog):
             jpeg_subsampling=self.subsampling.currentIndex(),
             allow_create_date=self.allow_create_date.isChecked(),
         )
+        params.update(self.digital.parameters())
+        params["digital_key"] = self._digital_key
         color = params["color_hex"]
         if not isinstance(color, str) or len(color) != 7 or not color.startswith("#"):
             raise ValueError("文字颜色请填写 #RRGGBB")

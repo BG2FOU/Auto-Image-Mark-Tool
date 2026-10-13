@@ -168,6 +168,10 @@ class WatermarkStep:
             "allow_create_date": "bool",
             "jpeg_quality": "int",
             "jpeg_subsampling": "int",
+            "digital_enabled": "bool",
+            "digital_algorithm": "str",
+            "digital_level": "str",
+            "digital_key": "str",
         }
     )
     required_parameters: frozenset[str] = frozenset()
@@ -183,6 +187,7 @@ class WatermarkStep:
     def _config(
         self, photo: PhotoItem, spec: StepSpec, *, metadata: Mapping[str, Any] | None = None
     ) -> tuple[WatermarkConfig, str]:
+        from aim_tool.services.frequency_watermark import digital_config
         from aim_tool.services.templates import project_default_config
         from aim_tool.services.watermark import Anchor, Category
 
@@ -229,6 +234,7 @@ class WatermarkStep:
             latin_opacity=value("latin_opacity", config.latin_opacity),
             chinese_opacity=value("chinese_opacity", config.chinese_opacity),
             signature_opacity=value("signature_opacity", config.signature_opacity),
+            digital=digital_config(spec.params),
         )
         return config, photo.edits.get("capture_date_source", resolved.source)
 
@@ -261,6 +267,10 @@ class WatermarkStep:
         fingerprints = tuple((path, _sha256(path)) for path in paths)
         size = validate_jpeg(item.source)
         render_watermark_region(size, config, self.resources)
+        if config.digital is not None:
+            from aim_tool.services.frequency_watermark import signature_spec
+
+            signature_spec(size, config.digital, self.resources.signature)
         if any(_sha256(path) != digest for path, digest in fingerprints):
             raise ValueError("Watermark asset changed during preflight")
         self._prepared[item.id] = _PreparedWatermark(item, spec, config, date_source, fingerprints)
@@ -291,10 +301,22 @@ class WatermarkStep:
             self.resources,
             quality=cast(int, spec.params.get("jpeg_quality", 95)),
             subsampling=cast(int, spec.params.get("jpeg_subsampling", 0)),
+            cancelled=context.cancelled,
         )
         for warning in warnings:
             context.warning(warning)
+        if context.cancelled.is_set():
+            raise InterruptedError("水印处理已取消")
         preserve_watermark_metadata(self.tool, artifact.path, target)
+        if prepared.config.digital is not None:
+            from aim_tool.services.frequency_watermark import verify_signature
+
+            verify_signature(
+                target,
+                prepared.config.digital,
+                self.resources.signature,
+                cancelled=context.cancelled,
+            )
         if _sha256(artifact.source) != original_hash or _sha256(artifact.path) != authority_hash:
             raise OSError("Source or current artifact changed during watermark export")
         if any(_sha256(path) != digest for path, digest in prepared.asset_hashes):

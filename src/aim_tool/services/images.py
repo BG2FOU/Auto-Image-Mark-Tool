@@ -7,6 +7,7 @@ from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Event
 
 from PIL import Image, ImageCms, ImageOps
 
@@ -89,12 +90,22 @@ def prepare_jpeg(path: Path) -> PreparedJpeg:
 
 
 def watermark_jpeg_pixels(
-    path: Path, config: WatermarkConfig, resources: WatermarkResources
+    path: Path,
+    config: WatermarkConfig,
+    resources: WatermarkResources,
+    *,
+    cancelled: Event | None = None,
 ) -> PreparedJpeg:
     """Return watermarked RGB pixels and their matching sRGB ICC, without saving."""
     prepared = prepare_jpeg(path)
     region = render_watermark_region(prepared.pixels.size, config, resources)
     composited = composite_watermark(prepared.pixels, region)
+    if config.digital is not None:
+        from aim_tool.services.frequency_watermark import apply_signature
+
+        composited = apply_signature(
+            composited, config.digital, resources.signature, cancelled=cancelled
+        )
     return PreparedJpeg(composited, prepared.srgb_icc, prepared.dpi, prepared.warnings)
 
 
@@ -114,6 +125,7 @@ def export_watermark_preview(
     *,
     quality: int = 95,
     subsampling: int = 0,
+    cancelled: Event | None = None,
 ) -> tuple[str, ...]:
     """Export a single local JPEG preview without replacing an input or target.
 
@@ -133,7 +145,9 @@ def export_watermark_preview(
     if target.exists() or target.is_symlink():
         raise FileExistsError(target)
     original_digest = _digest(source)
-    prepared = watermark_jpeg_pixels(source, config, resources)
+    if cancelled is not None and cancelled.is_set():
+        raise InterruptedError("水印处理已取消")
+    prepared = watermark_jpeg_pixels(source, config, resources, cancelled=cancelled)
     target.parent.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory(prefix=".aim-mark-", dir=target.parent) as name:
         staged = Path(name) / target.name
@@ -148,6 +162,12 @@ def export_watermark_preview(
         if prepared.dpi is not None:
             options["dpi"] = prepared.dpi
         prepared.pixels.save(staged, format="JPEG", **options)
+        if config.digital is not None:
+            from aim_tool.services.frequency_watermark import verify_signature
+
+            verify_signature(staged, config.digital, resources.signature, cancelled=cancelled)
+        if cancelled is not None and cancelled.is_set():
+            raise InterruptedError("水印处理已取消")
         if _digest(source) != original_digest:
             raise OSError("Source changed during watermark preview")
         commit_no_overwrite(staged, target)

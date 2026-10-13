@@ -38,7 +38,9 @@ def _photo(path: Path, *, dated: bool = True) -> None:
 
 def _window(qtbot: QtBot, tmp_path: Path, resources: WatermarkResources) -> MainWindow:
     settings = WatermarkSettingsStore(tmp_path / "settings.json")
-    settings.save(WatermarkSettings(resources))
+    # These legacy metadata/layout tests use a tiny image and a solid rectangle,
+    # so keep their visible-only scope; digital integration has its own tests.
+    settings.save(WatermarkSettings(resources, {"digital_enabled": False}))
     window = MainWindow(
         settings_store=settings,
         location_store=ConfigStore(tmp_path / "locations.json"),

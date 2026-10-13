@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 from aim_tool.domain import StepSpec, WorkflowSpec
 from aim_tool.domain.models import Parameter
 from aim_tool.services.storage import AppConfig, ConfigStore
+from aim_tool.ui.digital_watermark_controls import DigitalWatermarkControls
 
 
 class WorkflowPanel(QWidget):
@@ -29,6 +30,7 @@ class WorkflowPanel(QWidget):
     loaded = Signal(object)
     save_requested = Signal(str)
     message = Signal(str)
+    digital_changed = Signal(object)
 
     def __init__(self, store: ConfigStore | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -44,6 +46,10 @@ class WorkflowPanel(QWidget):
         self.presets = QComboBox()
         self.location = QCheckBox("写入坐标")
         self.watermark = QCheckBox("添加水印")
+        self.digital = DigitalWatermarkControls()
+        self.digital.setEnabled(False)
+        self.watermark.toggled.connect(self.digital.setEnabled)
+        self.digital.changed.connect(self._digital_parameters_changed)
         self.location.setChecked(True)
         self.scroll_area = QScrollArea()
         self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
@@ -75,6 +81,8 @@ class WorkflowPanel(QWidget):
             content.addWidget(badge)
             content.addWidget(control)
             content.addWidget(description)
+            if control is self.watermark:
+                content.addWidget(self.digital)
             layout.addWidget(card)
         export = QLabel("03  导出副本\n检查完整后提交，不覆盖原片")
         export.setWordWrap(True)
@@ -170,6 +178,7 @@ class WorkflowPanel(QWidget):
             control.blockSignals(True)
             control.setChecked(value)
             control.blockSignals(False)
+        self.digital.setEnabled(watermark)
 
     def _toggled(self) -> None:
         key = (
@@ -185,6 +194,11 @@ class WorkflowPanel(QWidget):
         self.presets.setCurrentIndex(self.presets.findData(key))
         self.presets.blockSignals(False)
         self.changed.emit()
+
+    def _digital_parameters_changed(self, params: Mapping[str, Parameter]) -> None:
+        # A modified named preset is now a built-in workflow with personal choices.
+        self._toggled()
+        self.digital_changed.emit(params)
 
     def spec(self, params: Mapping[str, Parameter]) -> WorkflowSpec:
         if not self.location.isChecked() and not self.watermark.isChecked():

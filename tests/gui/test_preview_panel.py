@@ -3,6 +3,7 @@
 from datetime import date
 from pathlib import Path
 
+import pytest
 from PIL import Image
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QImage
@@ -13,6 +14,41 @@ from aim_tool.services.storage import WatermarkSettings
 from aim_tool.services.watermark import WatermarkResources
 from aim_tool.ui.preview_panel import PreviewPanel
 from aim_tool.ui.workers import PreviewResult
+
+
+def test_digital_preview_uses_selected_algorithm_level_and_original_size(
+    qtbot: QtBot,
+    tmp_path: Path,
+    synthetic_watermark_resources: WatermarkResources,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from aim_tool.services import frequency_watermark as frequency
+
+    captured = []
+
+    def mark(pixels, config, signature, *, cancelled=None):
+        captured.append((pixels.size, config.algorithm, config.level, signature, cancelled))
+        return Image.new("RGB", pixels.size, (77, 88, 99))
+
+    monkeypatch.setattr(frequency, "apply_signature", mark)
+    source = tmp_path / "preview.jpg"
+    Image.new("RGB", (1007, 672), (20, 40, 60)).save(source)
+    photo = PhotoItem(
+        source,
+        tmp_path,
+        taken_on=date(2026, 10, 13),
+        edits={"category": "aviation", "subject": "B-1356"},
+    )
+    panel = PreviewPanel()
+    qtbot.addWidget(panel)
+    params = frequency.digital_defaults({"digital_algorithm": "fft", "digital_level": "high"})
+    panel.request(photo, WatermarkSettings(synthetic_watermark_resources, params))
+    qtbot.waitUntil(lambda: panel.last_result is not None, timeout=20000)
+    assert captured[0][:4] == ((1007, 672), "fft", "high", synthetic_watermark_resources.signature)
+    assert captured[0][4] is not None
+    assert "FFT · 高档" in panel.caption.text()
+    assert panel.last_result.image.pixelColor(0, 0).getRgb()[:3] == (77, 88, 99)
+    panel.shutdown()
 
 
 def test_stale_result_does_not_replace_current_photo(qtbot: QtBot) -> None:

@@ -8,12 +8,15 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from threading import Lock
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from PIL import Image, ImageDraw, ImageFont
 
 from aim_tool.domain.validation import validate_watermark_fields
 from aim_tool.services.fonts import ResourceStamp, load_checked_font, resource_stamp
+
+if TYPE_CHECKING:
+    from aim_tool.services.frequency_watermark import DigitalWatermarkConfig
 
 Anchor = Literal["top_left", "top_right", "bottom_left", "bottom_right"]
 Category = Literal["aviation", "railway", "landscape"]
@@ -51,9 +54,12 @@ class WatermarkConfig:
     base_width: int = 6016
     base_height: int = 4016
     base_ppi: float = 300.0
+    digital: DigitalWatermarkConfig | None = None
 
 
 def _validate(config: WatermarkConfig) -> None:
+    if config.digital is not None:
+        config.digital.validate()
     try:
         validate_watermark_fields(config.category, config.content)
     except ValueError as error:
