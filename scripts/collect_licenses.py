@@ -29,6 +29,19 @@ def _is_license(name: str) -> bool:
     )
 
 
+def _installed_license_path(package: str, item: PurePosixPath) -> Path:
+    if package != "numpy":
+        return DESTINATION / package / item.name
+    # NumPy has several identically named LICENSE.md files (FFT/RNG vendors).
+    # Preserve the dist-info subtree so attribution files cannot overwrite each other.
+    parts = item.parts
+    index = next(i for i, part in enumerate(parts) if part.endswith(".dist-info"))
+    relative = PurePosixPath(*parts[index + 1 :])
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError("Unsafe installed license path")
+    return DESTINATION / package / Path(*relative.parts)
+
+
 def collect() -> Path:
     manifest_path = ROOT / "packaging/license_sources.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -89,8 +102,8 @@ def collect() -> Path:
             if any(word in item.name.lower() for word in ("license", "copying", "copyright")):
                 path = Path(installed.locate_file(item))
                 if path.is_file() and ".dist-info/" in str(item):
-                    target = DESTINATION / package / item.name
-                    target.parent.mkdir(exist_ok=True)
+                    target = _installed_license_path(package, item)
+                    target.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(path, target)
                     found = True
         if not found:

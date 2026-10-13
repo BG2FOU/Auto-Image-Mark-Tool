@@ -127,3 +127,11 @@ API 兼容：旧的底层 `WatermarkConfig` 和没有数字参数的显式工作
 N1：核心已迁入 `services/frequency_watermark.py`；demo 通过兼容测量模块调用同一核心。显式 NumPy 依赖仍使用锁文件已有 2.5.3 与原哈希。六档、位图与位置规则保持 v1；增加内容指纹缓存、签名尺寸/容量拒绝、密钥与参数校验、分块取消和导出后完整恢复核验。28 项核心/demo 回归、Ruff 与核心严格 mypy 通过；尚未启用界面接入。
 
 N2：水印卡片、设置窗口、个人默认与流程预设已接入共享控件，默认启用 DCT 中档；关闭附加仍走原可见水印路径。旧个人配置补齐数字参数并保存原配置备份，修改数字选项不把临时布局改动写入个人默认；布局恢复保留密钥。预览采用同一配置并明确为编码前像素。正式输出在编码后和元数据传递后均核验完整恢复，取消通过 InterruptedError + 作业取消信号归类为 cancelled，临时成片不提交。六种组合的真实 ExifTool 合成流水线验证通过，覆盖方向、ICC、DPI、拍摄信息、当前 GPS、源图不变，以及容量不足/取消/核验失败清理；界面参数持久化、旧配置备份、预设重新载入、私有密钥不可保存时阻止导出、预览参数和无效配置拒绝也已验证。完整验证在 N3 记录。
+
+N3 完成：本地 `tests/unit tests/integration tests/gui -m 'not raw and not visual' --require-real-assets` 为 **334 passed、2 skipped、9 deselected**，跳过/排除不计为通过。全部 106 个 Python 文件的 Ruff/格式检查、43 个源码模块严格 mypy 与 pip check 通过。开发环境 editable 元数据已从旧 rc4 刷新为源码原有 rc5，未修改源码版本。源码自检扩展为 21 类，增加数字默认及实际 DCT/FFT 中档导出恢复；旧小图自检保留原可见水印范围，新增较大合成图验证数字功能。
+
+两张实际照片各通过 DCT 中档和 FFT 中档的正式 watermark→export（含 ExifTool 元数据保留）流程，共 4 张成片，全部独立提取精确一致；照片、签名、字体的前后哈希一致，私有密钥未出现在成片元数据中。界面截图、JPG 和完整记录仅留本地 `demo-output/digital-watermark-integration-2026-10-13/`，不再使用网页交付。
+
+从仅 Git 跟踪的源码快照叠加本节点自检改动构建 wheel，49 项归档审计确认包含频域服务、共享控件、默认模板和显式 NumPy 依赖，不含照片、字体、签名或未跟踪 Linux demo。现有许可证收集器原已枚举 NumPy，本次修正 NumPy dist-info 子树复制，防止多个供应商的同名 LICENSE.md 互相覆盖；新增路径冲突回归通过。未修改 PyInstaller 排除 RAW 的策略。
+
+本次为源码与本地开发验证，未构建或发布新版 Windows EXE，未执行原生 Windows 数字水印验收，也未创建 PR/标签/Release。现有正式 Release 和旧 rc5 测试包均不包含此功能。N0/N1/N2 已分别提交为 `7a9012a`、`462d0cb`、`1fff461`，N3 随本记录提交；继续在 `feat/frequency-watermark-demo` 按节点推送并核对远端 SHA。

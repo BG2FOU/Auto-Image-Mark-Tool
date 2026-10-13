@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import sys
 from collections.abc import Callable
+from dataclasses import replace
+from datetime import date
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -13,12 +15,12 @@ from time import monotonic
 from fontTools.fontBuilder import FontBuilder  # type: ignore[import-untyped]
 from fontTools.pens.ttGlyphPen import TTGlyphPen  # type: ignore[import-untyped]
 from openpyxl import Workbook  # type: ignore[import-untyped]
-from PIL import Image, ImageCms
+from PIL import Image, ImageCms, ImageDraw
 from PySide6.QtCore import QEventLoop, QTimer
 from PySide6.QtWidgets import QApplication, QLabel
 
 from aim_tool import __version__
-from aim_tool.domain import BatchJob, ItemStatus, LocationPreset, PhotoItem
+from aim_tool.domain import BatchJob, ItemStatus, LocationPreset, PhotoItem, StepSpec, WorkflowSpec
 from aim_tool.services.exiftool import ExifTool
 from aim_tool.services.nef_gps import fingerprint_nef
 from aim_tool.services.storage import ConfigStore, WatermarkSettings, WatermarkSettingsStore
@@ -28,7 +30,7 @@ from aim_tool.ui.coordinate_converter import CoordinateConverterDialog
 from aim_tool.ui.main_window import MainWindow
 from aim_tool.workflow.engine import build_plan, run_plan
 from aim_tool.workflow.registry import StepRegistry, preset
-from aim_tool.workflow.steps import ExportStep, LocationStep
+from aim_tool.workflow.steps import ExportStep, LocationStep, WatermarkStep
 
 
 def _resources(root: Path) -> WatermarkResources:
@@ -81,6 +83,58 @@ def _wait(predicate: Callable[[], bool], timeout: float = 60) -> None:
 def _check(condition: bool, message: str) -> None:
     if not condition:
         raise RuntimeError(message)
+
+
+def _frequency_smoke(root: Path, resources: WatermarkResources, tool: ExifTool, key: str) -> None:
+    """Exercise the actual frozen NumPy FFT/DCT and final metadata pipeline."""
+    import numpy as np
+
+    from aim_tool.services.frequency_watermark import (
+        digital_config,
+        digital_defaults,
+        extract,
+        signature_spec,
+    )
+
+    signature = root / "frequency-strokes.png"
+    image = Image.new("RGBA", (100, 60))
+    ImageDraw.Draw(image).line(
+        [(5, 50), (30, 5), (55, 50), (80, 8), (95, 35)], fill="white", width=5
+    )
+    image.save(signature)
+    resources = replace(resources, signature=signature)
+    source = root / "frequency.jpg"
+    gradient = Image.linear_gradient("L").resize((3840, 3200)).point(lambda p: round(35 + p * 0.7))
+    profile = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+    gradient.convert("RGB").save(source, quality=95, icc_profile=profile)
+    before = sha256(source.read_bytes()).digest()
+    photo = PhotoItem(
+        source,
+        root,
+        taken_on=date(2026, 10, 13),
+        edits={"category": "aviation", "subject": "AIM-DEMO"},
+    )
+    for algorithm in ("dct", "fft"):
+        params = digital_defaults({"digital_algorithm": algorithm}, existing_key=key)
+        registry = StepRegistry()
+        registry.register(WatermarkStep(tool, resources))
+        registry.register(ExportStep())
+        workflow = WorkflowSpec((StepSpec("watermark", params=params), StepSpec("export")))
+        (result,) = run_plan(
+            build_plan(BatchJob((photo,), workflow, root / f"frequency-{algorithm}"), registry)
+        )
+        _check(
+            result.status == ItemStatus.SUCCESS and result.output is not None,
+            result.error or "Digital watermark output missing",
+        )
+        assert result.output is not None
+        config = digital_config(params)
+        assert config is not None
+        with Image.open(result.output) as marked:
+            spec, expected = signature_spec(marked.size, config, resources.signature)
+            recovered = extract(np.asarray(marked.convert("RGB")), spec, config.key)
+        _check(bool(np.array_equal(expected, recovered)), "Digital signature recovery differs")
+    _check(sha256(source.read_bytes()).digest() == before, "Digital watermark source changed")
 
 
 def _add_editing_lists(source: Path) -> None:
@@ -154,6 +208,15 @@ def run_self_test(report: Path) -> int:
                     and not window.workflow.watermark.isChecked(),
                     "Default workflow is not coordinates only",
                 )
+                _check(
+                    window.workflow.digital.enabled.isChecked()
+                    and window.workflow.digital.algorithm.currentData() == "dct"
+                    and window.workflow.digital.level.currentData() == "medium",
+                    "Digital watermark defaults are not enabled DCT medium",
+                )
+                # The original small-image smoke path checks visible-only behavior.
+                # A separate full-capacity path below checks both digital algorithms.
+                window.workflow.digital.enabled.setChecked(False)
                 window.resize(1100, 720)
                 window.log.show()
                 panel = window.workflow
@@ -338,6 +401,9 @@ def run_self_test(report: Path) -> int:
                 window.close()
                 _wait(lambda: not window.has_active_workers)
                 window.close()
+            _frequency_smoke(
+                root, expected_settings.resources, tool, str(window.settings.params["digital_key"])
+            )
             result.update(
                 ok=True,
                 exiftool="13.59",
@@ -361,6 +427,8 @@ def run_self_test(report: Path) -> int:
                     "altitude",
                     "coordinate_conversion",
                     "editing_list_warnings",
+                    "digital_defaults",
+                    "dct_fft_watermark",
                 ],
             )
     except Exception as error:  # noqa: BLE001 - windowless builds report all smoke failures

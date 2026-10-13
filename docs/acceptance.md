@@ -524,3 +524,15 @@ JPEG 预检解码全部像素并建立源 ICC 到 sRGB 的转换以验证兼容�
 交付在本地忽略目录 `build/performance-exe/`：`AutoImageMarkTool-0.4.0rc5-test-windows-x64.exe`、同名 ZIP、BUILD_INFO.json、SHA256SUMS.txt 和 README-test.txt。ZIP 仅装入 EXE、构建记录、校验和测试说明；ZIP 完整性与内部 EXE 哈希一致性通过。二进制及运行日志不提交 Git；提交/推送本验收节点说明。
 
 P0–P5 已完成，P6 等待用户 Windows 实测反馈。尚未创建 rc.5 标签、触发正式远端发布构建或创建 Release；公开版本仍为 rc.4。用户确认测试通过后再继续正式发布流程。
+
+## 数字签名水印开发分支验收（2026-10-13）
+
+用户审查六档 JPG 后已授权接入水印栏，默认开启 DCT 中档，提供 FFT 和低/中/高，可关闭附加；在 `feat/frequency-watermark-demo` 分支按节点提交推送。设置、个人默认、流程预设、预览、容量预检与正式 JPEG 导出均已接入；新选项尚未包含于旧安装包。
+
+- 完整本地回归：334 passed、2 Windows Perl 平台项 skipped、9 raw/visual 项 deselected。Ruff/格式（106 个 Python 文件）、严格 mypy（43 个源码模块）和 pip check 通过。开发环境包元数据已刷新为当前源码的 0.4.0rc5，没有变更源版本。
+- 六种算法/档位组合的正式合成图流水线均完整提取成功；方向、ICC、DPI、拍摄信息、当前 GPS 和源文件不变。无效参数、容量不足、取消中的清理、恢复核验失败拒绝提交、旧设置升级及备份、局部数字设置保存、预设重载、密钥保留、预览参数均有回归覆盖。
+- 源码 `--self-test-jpg` 的 21 类检查通过，新增数字默认与 DCT/FFT 中档真实导出提取；这是源码/本地环境证据，尚未验证新的 Windows 冻结程序。
+- 两张本地实际照片各输出 DCT 中档和 FFT 中档，共 4 张正式 JPG，元数据保留后再次独立精确恢复；输入照片、签名和字体哈希一致，成片元数据无私有密钥。JPG、界面截图与详细记录仅在 Git 忽略的 `demo-output/digital-watermark-integration-2026-10-13/`，不上传素材或密钥。
+- clean-source wheel 的 49 项归档检查通过，包含数字服务、共享控件、默认模板及 NumPy 依赖，不含私人媒体或未跟踪 Linux demo。NumPy 已有锁定版本及哈希沿用，许可证收集保留供应商子树，防止同名许可覆盖。未改变 RAW 显影库排除策略。
+
+N0/N1/N2 提交为 `7a9012a`、`462d0cb`、`1fff461`，N3 随本条记录提交。未创建 PR/标签/Release；分支 push 不触发当前仅 main/PR 的 Windows CI，未执行原生 Windows 数字水印验收或构建新 EXE。旧 rc5 Windows 包及原 P6 门禁保持原记录；NEF 水印与自动几何同步仍不在本次范围内。

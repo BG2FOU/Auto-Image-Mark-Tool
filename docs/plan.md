@@ -652,3 +652,11 @@ Get-FileHash dist/AutoImageMarkTool.exe -Algorithm SHA256
 P3 已提交为 `2d83214`，Windows 字体源句柄修复 `c8c5072` 和完整解码但省去整图转换的预检优化 `a05fa6d` 已分别提交/推送。P4 基准原型 `a91e604` 已推送；三次原生 Windows 源码 CI 均成功。本地非 RAW 回归 288 passed、2 平台 skipped，真实 NEF 回归 8 passed，19 类源码自检和静态检查通过。公平串行/双线程比较及内存取舍见 `docs/performance.md`，应用维持串行。P5 使用新候选版本 0.4.0rc5 本地构建；Wine 11 已能启动固定 Python/Qt，仍待产物冻结检查和审计，P6 继续等待用户 Windows 验收。
 
 P5 完成：源 `1205084` 的新单文件测试 EXE 已在本地编译；同一文件 19 类冻结自检及中文含空格路径复测均通过，980 项归档审计通过。源提交原生 Windows CI 成功。EXE、测试 ZIP、来源记录、校验文件和测试说明位于本地忽略目录 `build/performance-exe/`，详见 `docs/acceptance.md` 的 P5 记录。P0–P5 已完成，P6 等待用户原生 Windows 测试确认；未创建新标签/Release，未触发正式远端构建。
+
+## 14. DCT/FFT 数字签名水印（2026-10-13）
+
+用户先审查频域 demo 计划和两张照片的六档 JPG，再授权正式接入水印栏：DCT/FFT、低/中/高，默认 DCT 中档；继续新分支逐节点提交推送。开发分支为 `feat/frequency-watermark-demo`。完整实验、参数与 N0–N3 节点见 [频域水印记录](frequency-watermark-demo.md)。
+
+现已接入共享设置、个人默认、流程预设、异步预览、容量预检及正式导出；默认启用附加，可关闭恢复原可见水印。嵌入发生在可见水印合成后、JPEG 编码前；编码后与元数据传递后均完整提取核验。密钥仅保存在本地配置/预设，原片与素材不变，取消或核验失败不提交临时成片。旧底层显式工作流兼容仅可见水印，界面载入的旧个人默认/预设补齐新数字默认。
+
+N3 本地验收：334 passed、2 skipped、9 deselected；全树 Ruff/格式、严格 mypy、pip check、21 类源码自检通过。两张实际照片的 DCT/FFT 中档正式输出均精确恢复；clean-source wheel 不含私人素材或未跟踪 demo。NumPy 使用已有锁定版本并保留供应商许可子树。仅 JPG，NEF 水印与自动几何同步未开放；本次未构建新 Windows 包、未发布版本，既有 P6 原生 Windows 验收门禁继续保留。
