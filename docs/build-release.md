@@ -1,6 +1,6 @@
 # 照片坐标与 JPG 水印版构建与发布
 
-本期版本源为 `src/aim_tool/__init__.py`（0.4.0rc4），标签为 `v0.4.0-rc.4`。支持 JPG/JPEG 三流程及按文件完整性检查的 Nikon NEF 坐标副本写入；RAW 显影与水印延后。旧 GPS-only 构建脚本和 Release 保留。
+本期版本源为 `src/aim_tool/__init__.py`（0.4.0rc5），标签为 `v0.4.0-rc.5`。支持 JPG/JPEG 三流程、可见水印附加 DCT/FFT 频域水印，以及按文件完整性检查的 Nikon NEF 坐标副本写入；RAW 显影与水印延后。旧 GPS-only 构建脚本和 Release 保留。
 
 ## 固定工具链
 
@@ -25,7 +25,9 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/build_deb.py
 
 两平台复用 `packaging/AutoImageMarkTool.spec`。Windows 适配器直接使用固定包内的 Perl 和相对 exiftool.pl/lib。路径优先使用系统代码页可无损表示的名称或现有 DOS 短路径；无短路径的中文安装目录会将未经修改的支持运行时复制到用户临时目录（必要时使用 LOCALAPPDATA），在对象释放时清理。只复制公开 ExifTool 运行时，不复制照片、字体、签名或用户设置；不依赖外部 Perl，不修改磁盘短路径设置。临时根目录也须能由系统代码页或短路径表示，否则明确提示设置可写的 ASCII TEMP，不静默继续。公共接口及 13.59 版本校验保持有效。构建脚本会运行 `--self-test-jpg --report`，从源码目录外启动实际冻结程序，清除外部 ExifTool/PYTHONPATH/Qt 插件路径，并把 PATH 限制为系统目录，使用临时自有合成字体/签名/JPG/XLSX，验证 GUI、地点保存、预览、GPS+水印、方向、ICC、拍摄日期、源哈希和清理。旧 `--self-test` GPS 接口保持不变。自测不联网，不读取用户照片。冻结自测共 19 类，包含海拔读回、批量坐标转换/列表追加和无关编辑列表警告兼容。`nef_scope` 检查验证伪 NEF 拒绝、预览/水印边界和未加载 RAW 显影库；`nef_gps` 使用合成 Nikon TIFF/NEF 容器验证坐标、卫星数、日期和数据保护，不替代真实样片验收。真实 NEF 只在本地授权样片上验证；历史 Z5 试写已获用户独立软件确认，新版的 Windows RAW 属性显示尚未逐机型核验。DEB 解包后再执行同一自测。
 
-`dist/AutoImageMarkTool/` 为目录版；Windows `dist/AutoImageMarkTool.exe` 为单文件版；Linux DEB 版本使用 Debian 的 `0.4.0~rc4` 排序。字体、签名必须由用户在本地设置中选择，首次启动不会自带私人素材。冻结自测不代表商用字体的人工视觉验收，也不代替独立 Windows 10 桌面交互检查。
+`dist/AutoImageMarkTool/` 为目录版；Windows `dist/AutoImageMarkTool.exe` 为单文件版；Linux DEB 版本使用 Debian 的 `0.4.0~rc5` 排序。字体、签名必须由用户在本地设置中选择，首次启动不会自带私人素材。冻结自测不代表商用字体的人工视觉验收，也不代替独立 Windows 10 桌面交互检查。
+
+rc.5 冻结自检共 23 类，在既有 19 类基础上增加 digital_defaults、dct_fft_watermark、batch_selection、capture_time_sort；实际执行 DCT/FFT 嵌入、最终 JPG 解码提取，以及排序/过滤后的批量选择操作。用户已在本次会话明确授权合并、构建与 Release，发布顺序按 docs/plan.md 第 15 节更新。源 CI、正式构建和公开下载验证分别记录；此前本地 Windows 测试包的人工反馈尚未取得，自动化验收不替代该反馈。
 
 ## CI 和发布
 
