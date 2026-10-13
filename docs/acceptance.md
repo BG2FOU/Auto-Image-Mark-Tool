@@ -544,3 +544,18 @@ N0/N1/N2 提交为 `7a9012a`、`462d0cb`、`1fff461`，N3 随本条记录提交�
 - 11 项关联 GUI 测试通过；完整非 RAW/visual 回归 337 passed、2 Windows Perl 平台 skipped、9 deselected。全树 Ruff/格式（106 文件）、严格 mypy（43 模块）、pip check 通过；23 类源码离线自检通过，新增 batch_selection、capture_time_sort 并与冻结校验脚本同步。
 - 实际界面渲染已检查，新增按钮与提示可见、部分勾选和多行高亮正确；截图与合成测试照片留在本地忽略目录，不纳入公开仓库。
 - 用户追加授权提交推送、合并分支、构建及 Release。后续按 docs/plan.md 第 15 节执行；这条指令替代此前等待原生 Windows 人工反馈的发布顺序，但人工反馈本身尚未取得。发布成功、CI 与下载包证据另行记录，不提前宣称完成。
+
+## v0.4.0-rc.5 正式发布与公开下载验收（2026-10-14）
+
+用户明确要求完成后提交推送、合并、构建与 Release，按该新授权执行正式发布。批处理节点 `0ee89a8`、发行说明 `70cb9c6` 已推送工作分支并核对远端；工作分支快进合并到 main。原生 CI 补齐频域流水线回归和手册更新后，发布源为 `17a5e90af5320ddabe79f31e189e1022b6823a24`，main 推送及新标签 `v0.4.0-rc.5` 解引用的远端 SHA 均核对一致。旧标签与历史包未改动。
+
+- 精确源提交 Windows CI [38425453869](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/38425453869) 全部成功：247 单元、36 GUI、32 流水线测试通过（1 visual deselected），含新增频域流水线。Ruff/格式、mypy、公共 wheel 范围检查、ExifTool 校验通过。本地从此 Git 归档构建的 wheel 49 项审计通过，不含未跟踪 demo 或私人素材。
+- 正式发行流程 [38426182082](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/38426182082) 全部 job 成功：prepare、windows、linux、assemble、publish、verify-published-windows。两平台均实际运行 23 类冻结检查；Windows 目录版与单文件版及中文含空格路径通过，Linux DEB 与解包程序通过。Linux 回归为 247 单元、36 GUI、30 流水线通过，2 Windows 平台 skipped、1 visual deselected。
+- [v0.4.0-rc.5](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.5) 于北京时间 2026-10-14 00:06:24 公开发布，预发布状态，7 份附件完整。Windows 原生 runner 独立下载公开 EXE，在中文路径下核对 SHA256 和源身份后运行全部 23 类离线自检，包含 DCT/FFT 实际输出恢复、批量勾选及拍摄时间排序。
+- 全部公开附件下载至本地忽略目录 `build/published-v0.4.0-rc.5`，在标签对应源提交运行 `check_release.py --tag v0.4.0-rc.5 --dist build/published-v0.4.0-rc.5` 通过；6 份载荷 SHA256、BUILD_INFO 的标签/源 SHA/固定工具链与 7 份附件集合一致。
+- Windows ZIP 完整性及公共资源审计 1,410 项、LICENSES.zip 完整性与两平台清单 584 项、公开 DEB 解包资源审计 1,004 文件通过。NumPy 两平台许可清单和 pcg64/philox 等供应商许可子树齐全；没有私人照片、字体、签名、个人配置、RAW 显影库或未跟踪 Linux demo。
+- 实际公开 DEB 解包程序经 `smoke_exe.py` 通过全部 23 类自检（version=0.4.0rc5、frozen=true、ok=true、ExifTool=13.59），本地日志为 `build/rc5-published-deb-smoke.log`；发行日志、审计摘要保存在本地忽略目录，不提交运行缓存或二进制。
+
+公开 EXE 为 76,250,398 字节，SHA256 `bdc5dab7246eac8d8a6388f73c4db96f6c7bbaad0a93b17c31b18c4c24902306`；目录 ZIP 为 76,673,187 字节；DEB 为 82,146,680 字节，内部版本 `0.4.0~rc5`。EXE 仍未签名；本次没有用户原生 Windows 人工反馈，不将发布授权、历史确认或自动化验证当作该反馈。NEF 水印/显影与未知几何变换的自动水印同步仍未开放。
+
+本节验收文档在验证完成后另行提交，main 的后续文档提交不改变 rc.5 标签、构建来源或公开附件；对该发布运行严格校验时应使用上述标签 checkout。

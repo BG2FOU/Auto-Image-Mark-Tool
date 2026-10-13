@@ -41,6 +41,8 @@ rc.5 冻结自检共 23 类，在既有 19 类基础上增加 digital_defaults�
 
 ## 已发布版本与下载验证
 
+[v0.4.0-rc.5](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.5) 对应源 SHA `17a5e90af5320ddabe79f31e189e1022b6823a24`；源码 Windows CI `38425453869` 和正式流程 `38426182082` 全部成功。公开 Windows EXE 中文下载路径和公开 Linux DEB 解包程序均通过 23 类离线自检。全部 7 份附件的哈希/构建身份、ZIP/DEB 私人资源排除、两平台 NumPy 许可子树已独立验证。完整证据见 [验收记录](acceptance.md)。
+
 [v0.4.0-rc.4](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.4) 对应源 SHA `ad4aa4135448c5ff8c37e9bd5baf9550569b7e30`，源码 CI `37804492251` 和正式流程 `37805125058` 首次完整运行全部成功。全部 7 份公开附件下载后的哈希、版本/源身份、许可归档和 ZIP/DEB 资源审计通过；公开 Windows EXE 中文路径及公开 Linux DEB 解包程序均通过 19 类离线自检，含无关编辑列表警告场景。完整证据见 [验收记录](acceptance.md)。
 
 [v0.4.0-rc.3](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.3) 对应源 SHA `652af38a075154958da8564efd291d8001dbc742`，源码 CI `37703531202` 通过，正式流程 `37703978957` 第二次完整运行全部成功。全部公开附件哈希及源身份、许可归档和 Windows ZIP 资源审计通过；公开 Windows EXE 中文路径及公开 Linux DEB 解包后的 18 类自检通过。首次 Windows Qt 进程异常与重跑记录见 [验收记录](acceptance.md)。rc.2 Release 已撤下，标签保留。

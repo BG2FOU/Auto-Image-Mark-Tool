@@ -4,15 +4,15 @@
 
 ## 下载
 
-JPG 水印与 NEF 坐标图形预发布 [v0.4.0-rc.4](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.4)：
+JPG 水印与 NEF 坐标图形预发布 [v0.4.0-rc.5](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.5)：
 
-- [Windows x64 单文件 EXE](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/download/v0.4.0-rc.4/AutoImageMarkTool-v0.4.0-rc.4-windows-x64.exe)
-- [Windows x64 目录 ZIP](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/download/v0.4.0-rc.4/AutoImageMarkTool-v0.4.0-rc.4-windows-x64.zip)
-- [Ubuntu 24.04 / Linux amd64 DEB](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/download/v0.4.0-rc.4/auto-image-mark-tool_0.4.0-rc.3_amd64.deb)
+- [Windows x64 单文件 EXE](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/download/v0.4.0-rc.5/AutoImageMarkTool-v0.4.0-rc.5-windows-x64.exe)
+- [Windows x64 目录 ZIP](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/download/v0.4.0-rc.5/AutoImageMarkTool-v0.4.0-rc.5-windows-x64.zip)
+- [Ubuntu 24.04 / Linux amd64 DEB](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/download/v0.4.0-rc.5/auto-image-mark-tool_0.4.0-rc.5_amd64.deb)
 
-Windows 双击 EXE，或解压 ZIP 后运行其中的 EXE；Linux 用 `sudo apt install ./auto-image-mark-tool_0.4.0-rc.3_amd64.deb` 安装，再启动 `auto-image-mark-tool`。使用 Release 附带的 SHA256SUMS.txt 校验下载；完整许可与构建来源随附件提供。无需另装 Python 或 ExifTool，水印字体和签名由用户在本地选择。
+Windows 双击 EXE，或解压 ZIP 后运行其中的 EXE；Linux 用 `sudo apt install ./auto-image-mark-tool_0.4.0-rc.5_amd64.deb` 安装，再启动 `auto-image-mark-tool`。使用 Release 附带的 SHA256SUMS.txt 校验下载；完整许可与构建来源随附件提供。无需另装 Python 或 ExifTool，水印字体和签名由用户在本地选择。
 
-此预发布未做 Windows 代码签名。用户已确认 JPG 人工核验完成，具体系统与逐项明细未提供；自动化与下载验收分别见 [验收记录](docs/acceptance.md)。
+此预发布未做 Windows 代码签名。rc.5 源码 CI、两平台构建、公开 EXE 中文路径自检及下载 DEB 自检已通过；本次用户原生 Windows 人工反馈尚未取得，历史 JPG 人工确认不代表 rc.5 人工验收。完整证据见 [验收记录](docs/acceptance.md)。
 
 ## 当前功能
 
@@ -44,7 +44,7 @@ python -m pip install --no-deps --no-build-isolation -e .
 python -m aim_tool
 ```
 
-`python -m aim_tool --gps-only` 保留独立坐标预览页面。主页面操作见 [用户手册](docs/user-guide.md)。旧 GPS 预发布 `v0.2.0-rc.2` 与 JPG 版 `v0.3.0-rc.1` 保留；新版请使用上面的 `v0.4.0-rc.4`。旧 `--gps-only` 预览仍保留原验收门禁，NEF 请使用主页面的“坐标”流程。
+`python -m aim_tool --gps-only` 保留独立坐标预览页面。主页面操作见 [用户手册](docs/user-guide.md)。旧 GPS 预发布 `v0.2.0-rc.2` 与 JPG 版 `v0.3.0-rc.1` 保留；新版请使用上面的 `v0.4.0-rc.5`。旧 `--gps-only` 预览仍保留原验收门禁，NEF 请使用主页面的“坐标”流程。
 
 ```bash
 QT_QPA_PLATFORM=offscreen python -m pytest tests/unit tests/integration tests/gui -m 'not raw' -q
