@@ -46,7 +46,7 @@ class RecoveryMetrics(TypedDict):
 
 def check_cancelled(cancelled: Event | None) -> None:
     if cancelled is not None and cancelled.is_set():
-        raise InterruptedError("数字水印处理已取消")
+        raise InterruptedError("频域水印处理已取消")
 
 
 VERSION = "frequency-signature-v1"
@@ -67,9 +67,9 @@ class DigitalWatermarkConfig:
 
     def validate(self) -> None:
         if self.algorithm not in STRENGTHS or self.level not in STRENGTHS[self.algorithm]:
-            raise ValueError("数字水印仅支持 DCT/FFT 与低、中、高三个档位")
+            raise ValueError("频域水印仅支持 DCT/FFT 与低、中、高三个档位")
         if not valid_key(self.key):
-            raise ValueError("数字水印本地密钥无效，请在水印设置中保存默认配置")
+            raise ValueError("频域水印本地密钥无效，请在水印设置中保存默认配置")
 
     @property
     def strength(self) -> float:
@@ -88,11 +88,11 @@ def digital_config(params: Mapping[str, Parameter]) -> DigitalWatermarkConfig | 
     level = params.get("digital_level", "medium")
     key = params.get("digital_key", "")
     if type(enabled) is not bool:
-        raise ValueError("数字水印开关必须为布尔值")
+        raise ValueError("频域水印开关必须为布尔值")
     if algorithm not in {"dct", "fft"} or level not in {"low", "medium", "high"}:
-        raise ValueError("数字水印仅支持 DCT/FFT 与低、中、高三个档位")
+        raise ValueError("频域水印仅支持 DCT/FFT 与低、中、高三个档位")
     if "digital_key" in params and not valid_key(key):
-        raise ValueError("数字水印本地密钥无效")
+        raise ValueError("频域水印本地密钥无效")
     if not enabled:
         return None
     config = DigitalWatermarkConfig(cast(str, key), cast(Algorithm, algorithm), cast(Level, level))
@@ -417,7 +417,7 @@ def signature_spec(
     spec = Spec(config.algorithm, size, (bits.shape[1], bits.shape[0]), config.strength)
     if spec.bit_count * spec.repeats > spec.capacity:
         raise ValueError(
-            "图片容量不足，无法嵌入数字签名（128 px、9 次重复）；请使用较大图片或关闭附加数字水印"
+            "图片容量不足，无法嵌入数字签名（128 px、9 次重复）；请使用较大图片或关闭附加频域水印"
         )
     spec.validate()
     return spec, bits
@@ -451,5 +451,5 @@ def verify_signature(
     recovered = extract(pixels, spec, config.key, cancelled=cancelled)
     if not np.array_equal(expected, recovered):
         raise ValueError(
-            "导出后数字签名未能完整恢复；请提高 JPEG 质量或数字水印档位，或关闭附加数字水印"
+            "导出后数字签名未能完整恢复；请提高 JPEG 质量或频域水印档位，或关闭附加频域水印"
         )

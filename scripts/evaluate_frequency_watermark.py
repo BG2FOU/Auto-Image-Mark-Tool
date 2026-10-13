@@ -248,7 +248,7 @@ def combination(
     directory = root / sample["id"]
     prepared = prepare_jpeg(source)
     config = WatermarkConfig(
-        category="landscape", content="数字水印 Demo", taken_on=date(2026, 10, 13)
+        category="landscape", content="频域水印 Demo", taken_on=date(2026, 10, 13)
     )
     region = render_watermark_region(prepared.pixels.size, config, resources)
     composite_watermark(prepared.pixels, region)
@@ -317,7 +317,7 @@ Q95 / 4:4:4 导出。全部指标基于完整图像，缩略预览仅帮助浏�
 <button id="toggle">查看候选全幅</button></div>
 <div class="panel cards" id="quality"></div>
 <div class="panel frame"><div class="stage" id="stage"><img id="base" alt="参考图">
-<div id="overlay"><img id="candidate" alt="数字水印候选"></div><div id="divider"></div></div></div>
+<div id="overlay"><img id="candidate" alt="频域水印候选"></div><div id="divider"></div></div></div>
 <p id="caption"></p><div class="panel"><h3>签名提取</h3><label>提取条件 <select id="attack">
 <option value="saved">首次保存 Q95</option><option value="jpeg_q90">重压缩 Q90 / 4:2:0</option>
 <option value="jpeg_q75">重压缩 Q75 / 4:2:0</option><option value="jpeg_q50">重压缩 Q50 / 4:2:0</option>

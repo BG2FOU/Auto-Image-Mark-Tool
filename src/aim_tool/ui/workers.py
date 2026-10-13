@@ -206,7 +206,7 @@ class PreviewWorker(QThread):
                 if config.digital is not None:
                     level = {"low": "低档", "medium": "中档", "high": "高档"}[config.digital.level]
                     caption += (
-                        f"\n数字水印 {config.digital.algorithm.upper()} · {level}（编码前预览）"
+                        f"\n频域水印 {config.digital.algorithm.upper()} · {level}（编码前预览）"
                     )
             if self.cancelled.is_set():
                 return

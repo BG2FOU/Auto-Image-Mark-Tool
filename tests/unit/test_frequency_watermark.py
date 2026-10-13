@@ -56,7 +56,7 @@ def test_exact_reviewed_strengths(algorithm: str, values: tuple[int, ...]) -> No
     ],
 )
 def test_invalid_parameters_never_fall_back(params: dict) -> None:
-    with pytest.raises(ValueError, match="数字水印"):
+    with pytest.raises(ValueError, match="频域水印"):
         frequency.digital_config(params)
 
 

@@ -165,7 +165,7 @@ class SettingsDialog(QDialog):
         digital_note.setWordWrap(True)
         digital_form.addWidget(digital_note)
         digital_form.addStretch()
-        self.tabs.addTab(digital_page, "数字水印")
+        self.tabs.addTab(digital_page, "频域水印")
         self._digital_key = str(digital_defaults(settings.params)["digital_key"])
         self.error_label = QLabel()
         self.error_label.setWordWrap(True)

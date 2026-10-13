@@ -15,7 +15,7 @@ class DigitalWatermarkControls(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.enabled = QCheckBox("附加数字水印")
+        self.enabled = QCheckBox("附加频域水印")
         self.enabled.setToolTip("将本地签名嵌入照片像素；随添加水印步骤一起导出。")
         self.algorithm = QComboBox()
         for label, value in (("DCT", "dct"), ("FFT", "fft")):
@@ -40,7 +40,7 @@ class DigitalWatermarkControls(QWidget):
         algorithm = self.algorithm.findData(params.get("digital_algorithm", "dct"))
         level = self.level.findData(params.get("digital_level", "medium"))
         if type(enabled) is not bool or algorithm < 0 or level < 0:
-            raise ValueError("数字水印设置无效")
+            raise ValueError("频域水印设置无效")
         for control in (self.enabled, self.algorithm, self.level):
             control.blockSignals(True)
         self.enabled.setChecked(enabled)

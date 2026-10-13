@@ -110,7 +110,7 @@ class MainWindow(QMainWindow):
             if needs_migration and not initial_error:
                 self.settings_store.save(migrated)
         except (OSError, ValueError) as error:
-            initial_error += f" 数字水印默认无法保存：{error}。处理前需保存有效的本地配置。"
+            initial_error += f" 频域水印默认无法保存：{error}。处理前需保存有效的本地配置。"
         self._preflight_worker: PreflightWorker | None = None
         self._batch_worker: BatchWorker | None = None
         self._metadata_worker: MetadataWorker | None = None
@@ -620,13 +620,13 @@ class MainWindow(QMainWindow):
         try:
             updated = digital_defaults(params)
         except ValueError as error:
-            self._message(f"数字水印设置未应用：{error}")
+            self._message(f"频域水印设置未应用：{error}")
             return
         self.settings = WatermarkSettings(self.settings.resources, updated)
         try:
             self._persist_digital_defaults()
         except (OSError, ValueError) as error:
-            self._message(f"数字水印设置已应用，但个人默认未保存：{error}")
+            self._message(f"频域水印设置已应用，但个人默认未保存：{error}")
         self._schedule_preview()
 
     def _refresh_date_policy(self) -> None:
