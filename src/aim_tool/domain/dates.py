@@ -81,3 +81,18 @@ def resolve_capture_date(
             continue
         return ResolvedDate(parse_capture_date(original), source, original)
     raise DateError("Capture date is missing; enter a date or allow CreateDate fallback")
+
+
+def parse_capture_time(value: DateInput) -> datetime:
+    """Compare the recorded camera clock, retaining seconds without inventing a timezone."""
+    day = parse_capture_date(value)
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=None)
+    if isinstance(value, date):
+        return datetime.combine(day, datetime.min.time())
+    text = value.strip()
+    if _EXIF_DATETIME.fullmatch(text):
+        text = text[:10].replace(":", "-") + text[10:]
+    if _DATE.fullmatch(text):
+        return datetime.combine(day, datetime.min.time())
+    return datetime.fromisoformat(text).replace(tzinfo=None)

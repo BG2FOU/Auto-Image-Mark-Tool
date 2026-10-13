@@ -16,7 +16,7 @@ from fontTools.fontBuilder import FontBuilder  # type: ignore[import-untyped]
 from fontTools.pens.ttGlyphPen import TTGlyphPen  # type: ignore[import-untyped]
 from openpyxl import Workbook  # type: ignore[import-untyped]
 from PIL import Image, ImageCms, ImageDraw
-from PySide6.QtCore import QEventLoop, QTimer
+from PySide6.QtCore import QEventLoop, QItemSelectionModel, Qt, QTimer
 from PySide6.QtWidgets import QApplication, QLabel
 
 from aim_tool import __version__
@@ -83,6 +83,41 @@ def _wait(predicate: Callable[[], bool], timeout: float = 60) -> None:
 def _check(condition: bool, message: str) -> None:
     if not condition:
         raise RuntimeError(message)
+
+
+def _batch_selection_smoke(root: Path, window: MainWindow) -> None:
+    paths = tuple(root / f"sort-{number}.jpg" for number in range(3))
+    for path in paths:
+        Image.new("RGB", (32, 32)).save(path)
+    photos = window.model.add_paths(paths)
+    for photo, hour in zip(photos[:2], (15, 9), strict=True):
+        window.model.update_metadata(
+            photo.id, {"ExifIFD:DateTimeOriginal": f"2026:10:13 {hour:02}:00:00"}
+        )
+    _check(
+        window.proxy.sortColumn() == window.model.DATE
+        and window.proxy.index(0, window.model.FILE).data() == paths[1].name
+        and window.proxy.index(2, window.model.FILE).data() == paths[2].name,
+        "Default capture timestamp sort failed",
+    )
+    for row in (0, 1):
+        window.table.selectionModel().select(
+            window.proxy.index(row, 0),
+            QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows,
+        )
+    window.uncheck_selected_button.click()
+    _check(
+        [row.checked for row in window.model.rows] == [False, False, True]
+        and window.check_all.checkState() == Qt.CheckState.PartiallyChecked,
+        "Multi-row checking lost photo identity",
+    )
+    window.search.setText(paths[2].name)
+    window.check_all.click()
+    _check(all(row.checked for row in window.model.rows), "Partial check did not select all")
+    window.check_all.click()
+    _check(not any(row.checked for row in window.model.rows), "Filtered global uncheck failed")
+    window.model.remove_ids({photo.id for photo in photos})
+    window.search.clear()
 
 
 def _frequency_smoke(root: Path, resources: WatermarkResources, tool: ExifTool, key: str) -> None:
@@ -202,6 +237,7 @@ def run_self_test(report: Path) -> int:
                 window.show()
                 application.processEvents()
                 _check(window.isVisible(), "JPG window did not open")
+                _batch_selection_smoke(root, window)
                 _check(
                     window.workflow.presets.currentData() == "location"
                     and window.workflow.location.isChecked()
@@ -429,6 +465,8 @@ def run_self_test(report: Path) -> int:
                     "editing_list_warnings",
                     "digital_defaults",
                     "dct_fft_watermark",
+                    "batch_selection",
+                    "capture_time_sort",
                 ],
             )
     except Exception as error:  # noqa: BLE001 - windowless builds report all smoke failures

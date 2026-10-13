@@ -8,7 +8,7 @@ from dataclasses import replace
 from pathlib import Path
 from uuid import UUID
 
-from PySide6.QtCore import QSortFilterProxyModel, Qt, QTimer
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -41,7 +41,7 @@ from aim_tool.ui.about_dialog import AboutDialog
 from aim_tool.ui.coordinate_converter import CoordinateConverterDialog
 from aim_tool.ui.import_dialog import ImportDialog
 from aim_tool.ui.location_panel import LocationPanel
-from aim_tool.ui.photo_table import CATEGORIES, PhotoTableModel, PhotoTableView
+from aim_tool.ui.photo_table import CATEGORIES, PhotoSortProxyModel, PhotoTableModel, PhotoTableView
 from aim_tool.ui.preview_panel import PreviewPanel
 from aim_tool.ui.settings_dialog import SettingsDialog
 from aim_tool.ui.workers import BatchWorker, MetadataWorker, PreflightWorker
@@ -77,6 +77,15 @@ QTabWidget::pane { background: white; border: 1px solid #dce4ee; }
 QTabBar::tab { padding: 10px 16px; background: #e5edf5; }
 QTabBar::tab:selected { background: white; color: #0e7490; }
 """
+
+
+class CheckAllBox(QCheckBox):
+    def nextCheckState(self) -> None:
+        self.setCheckState(
+            Qt.CheckState.Unchecked
+            if self.checkState() == Qt.CheckState.Checked
+            else Qt.CheckState.Checked
+        )
 
 
 class MainWindow(QMainWindow):
@@ -123,12 +132,13 @@ class MainWindow(QMainWindow):
         self.last_plan: ExecutionPlan | None = None
 
         self.model = PhotoTableModel(self)
-        self.proxy = QSortFilterProxyModel(self)
+        self.proxy = PhotoSortProxyModel(self)
         self.proxy.setSourceModel(self.model)
         self.proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.proxy.setFilterKeyColumn(-1)
         self.table = PhotoTableView()
         self.table.setModel(self.proxy)
+        self.table.sortByColumn(self.model.DATE, Qt.SortOrder.AscendingOrder)
         self.table.setColumnWidth(self.model.CHECK, 48)
         for column, width in (
             (self.model.FILE, 180),
@@ -180,6 +190,26 @@ class MainWindow(QMainWindow):
         search_row.addWidget(self.counter)
         search_row.addStretch()
         search_row.addWidget(self.search)
+        self.check_all = CheckAllBox("全部勾选 / 不勾选")
+        self.check_all.setTristate(True)
+        self.check_all.setToolTip(
+            "作用于全部已导入照片，包括搜索隐藏的照片；半勾选表示部分已勾选。"
+        )
+        self.check_all.checkStateChanged.connect(
+            lambda state: self.model.set_checked(state == Qt.CheckState.Checked)
+        )
+        self.check_selected_button = QPushButton("勾选选中")
+        self.uncheck_selected_button = QPushButton("取消勾选选中")
+        self.check_selected_button.clicked.connect(lambda: self._check_selected(True))
+        self.uncheck_selected_button.clicked.connect(lambda: self._check_selected(False))
+        self.table.selectionModel().selectionChanged.connect(self._update_selection_controls)
+        check_controls = QHBoxLayout()
+        check_controls.addWidget(self.check_all)
+        check_controls.addStretch()
+        check_controls.addWidget(self.check_selected_button)
+        check_controls.addWidget(self.uncheck_selected_button)
+        self._update_count()
+        self._update_selection_controls()
         self.bulk_category = QComboBox()
         for key, name in CATEGORIES.items():
             self.bulk_category.addItem(name, key)
@@ -207,9 +237,13 @@ class MainWindow(QMainWindow):
         photos_layout.addWidget(title)
         photos_layout.addLayout(file_controls)
         photos_layout.addLayout(search_row)
+        photos_layout.addLayout(check_controls)
         photos_layout.addWidget(self.fields_widget)
         photos_layout.addWidget(self.table, 1)
-        table_hint = QLabel("可拖入 JPG；勾选控制处理范围，选中行控制预览。双击单元格可逐张编辑。")
+        table_hint = QLabel(
+            "默认按拍摄时间从早到晚，缺失时间排末尾；点击列头可改排序。"
+            "Ctrl / Shift 可选中多行；勾选控制处理范围。双击单元格可逐张编辑。"
+        )
         table_hint.setWordWrap(True)
         table_hint.setObjectName("muted")
         photos_layout.addWidget(table_hint)
@@ -370,6 +404,27 @@ class MainWindow(QMainWindow):
     def _update_count(self) -> None:
         count = sum(row.checked for row in self.model.rows)
         self.counter.setText(f"{len(self.model.rows)} 张照片 · 勾选 {count} 张")
+        with QSignalBlocker(self.check_all):
+            self.check_all.setCheckState(
+                Qt.CheckState.Unchecked
+                if not count
+                else Qt.CheckState.Checked
+                if count == len(self.model.rows)
+                else Qt.CheckState.PartiallyChecked
+            )
+        self.check_all.setEnabled(bool(self.model.rows))
+
+    def _update_selection_controls(self) -> None:
+        selected = bool(self.table.selectionModel().selectedRows())
+        self.check_selected_button.setEnabled(selected)
+        self.uncheck_selected_button.setEnabled(selected)
+
+    def _check_selected(self, checked: bool) -> None:
+        ids = {
+            UUID(index.data(Qt.ItemDataRole.UserRole))
+            for index in self.table.selectionModel().selectedRows()
+        }
+        self.model.set_checked(checked, ids=ids)
 
     def _workflow_changed(self) -> None:
         watermark, location = (

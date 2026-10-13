@@ -70,6 +70,10 @@ def main() -> int:
                 "altitude",
                 "coordinate_conversion",
                 "editing_list_warnings",
+                "digital_defaults",
+                "dct_fft_watermark",
+                "batch_selection",
+                "capture_time_sort",
             ],
         }
         if completed.returncode != 0 or data != expected:

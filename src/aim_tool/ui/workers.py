@@ -66,6 +66,7 @@ class MetadataWorker(QThread):
                         metadata = tool.metadata(
                             photo.source,
                             "-ExifIFD:DateTimeOriginal",
+                            "-ExifIFD:SubSecTimeOriginal",
                             "-ExifIFD:CreateDate",
                             "-File:ImageWidth",
                             "-File:ImageHeight",

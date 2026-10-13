@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -13,6 +14,7 @@ from PySide6.QtCore import (
     QAbstractTableModel,
     QModelIndex,
     QPersistentModelIndex,
+    QSortFilterProxyModel,
     Qt,
     Signal,
 )
@@ -26,7 +28,7 @@ from PySide6.QtWidgets import (
 )
 
 from aim_tool.domain import ItemResult, ItemStatus, PhotoItem
-from aim_tool.domain.dates import resolve_capture_date
+from aim_tool.domain.dates import DateInput, parse_capture_time, resolve_capture_date
 from aim_tool.domain.validation import validate_altitude, validate_coordinates
 from aim_tool.services.table_import import apply_manual_date
 
@@ -225,6 +227,44 @@ class PhotoTableModel(QAbstractTableModel):
     def _changed(self, row: int) -> None:
         self.dataChanged.emit(self.index(row, 0), self.index(row, self.columnCount() - 1), [])
 
+    def set_checked(self, checked: bool, *, ids: set[UUID] | None = None) -> None:
+        """Change processing checks by stable identity, independent of view order/filter."""
+        changed = []
+        for number, row in enumerate(self.rows):
+            if (ids is None or row.photo.id in ids) and row.checked != checked:
+                row.checked = checked
+                changed.append(number)
+        if changed:
+            self.dataChanged.emit(
+                self.index(changed[0], self.CHECK),
+                self.index(changed[-1], self.CHECK),
+                [Qt.ItemDataRole.CheckStateRole],
+            )
+            self.edited.emit()
+
+    def capture_time(self, number: int) -> datetime | None:
+        photo = self.rows[number].photo
+        original = photo.metadata.get("ExifIFD:DateTimeOriginal", "").strip()
+        value: DateInput
+        if original:
+            subseconds = photo.metadata.get("ExifIFD:SubSecTimeOriginal", "").strip()
+            if subseconds.isdigit() and "." not in original:
+                original += "." + subseconds
+            value = original
+        try:
+            if not original:
+                # Retain full fallback timestamps, respecting the existing date policy.
+                value = resolve_capture_date(
+                    manual=photo.edits.get("date_input")
+                    or photo.edits.get("capture_date_original")
+                    or photo.taken_on,
+                    exif_create_date=photo.metadata.get("ExifIFD:CreateDate"),
+                    allow_create_date=self.allow_create_date,
+                ).original
+            return parse_capture_time(value)
+        except ValueError:
+            return None
+
     def add_paths(
         self, paths: Sequence[Path], import_root: Path | None = None
     ) -> tuple[PhotoItem, ...]:
@@ -329,6 +369,27 @@ class PhotoTableModel(QAbstractTableModel):
                 row.status, row.error = "待处理", ""
             self._changed(number)
         self.edited.emit()
+
+
+class PhotoSortProxyModel(QSortFilterProxyModel):
+    def lessThan(
+        self, left: QModelIndex | QPersistentModelIndex, right: QModelIndex | QPersistentModelIndex
+    ) -> bool:
+        model = self.sourceModel()
+        if left.column() != PhotoTableModel.DATE or not isinstance(model, PhotoTableModel):
+            return super().lessThan(left, right)
+        first, second = model.capture_time(left.row()), model.capture_time(right.row())
+        if (first is None) != (second is None):
+            # Qt reverses the comparison for descending order; unknown dates stay last.
+            return (
+                first is not None
+                if self.sortOrder() == Qt.SortOrder.AscendingOrder
+                else first is None
+            )
+        if first == second:
+            return left.row() < right.row()
+        assert first is not None and second is not None
+        return first < second
 
 
 class CategoryDelegate(QStyledItemDelegate):

@@ -6,6 +6,7 @@ from threading import Event
 
 import pytest
 from PIL import Image, ImageCms
+from PySide6.QtCore import QItemSelectionModel, Qt
 from pytestqt.qtbot import QtBot
 
 from aim_tool.domain import ItemStatus
@@ -204,3 +205,57 @@ def test_nef_is_imported_but_watermark_is_blocked(
     assert "NEF 仅支持坐标写入" in window.log.toPlainText()
     assert not (tmp_path / "out").exists()
     _close(qtbot, window)
+
+
+def test_batch_check_controls_use_selected_ids_after_sort_and_filter(
+    qtbot: QtBot, tmp_path: Path, synthetic_watermark_resources: WatermarkResources
+) -> None:
+    window = _window(qtbot, tmp_path, synthetic_watermark_resources)
+    try:
+        assert not window.check_all.isEnabled()
+        assert not window.check_selected_button.isEnabled()
+        paths = tuple(tmp_path / name for name in ("late.jpg", "early.jpg", "middle.jpg"))
+        for path in paths:
+            _photo(path)
+        photos = window.model.add_paths(paths)
+        for photo, hour in zip(photos, (15, 9, 12), strict=True):
+            window.model.update_metadata(
+                photo.id, {"ExifIFD:DateTimeOriginal": f"2026:10:13 {hour:02}:00:00"}
+            )
+        assert window.proxy.sortColumn() == window.model.DATE
+        assert window.proxy.index(0, window.model.FILE).data() == "early.jpg"
+        assert window.check_all.checkState() == Qt.CheckState.Checked
+        selection = window.table.selectionModel()
+        for row in (0, 2):
+            selection.select(
+                window.proxy.index(row, 0),
+                QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows,
+            )
+        window.uncheck_selected_button.click()
+        assert [row.checked for row in window.model.rows] == [False, False, True]
+        assert window.check_all.checkState() == Qt.CheckState.PartiallyChecked
+        assert "勾选 1 张" in window.counter.text()
+        window.check_selected_button.click()
+        assert all(row.checked for row in window.model.rows)
+        window.search.setText("middle")
+        assert window.proxy.rowCount() == 1
+        window.check_all.click()
+        assert not any(row.checked for row in window.model.rows)
+        window.table.selectRow(0)
+        window.check_selected_button.click()
+        assert [row.checked for row in window.model.rows] == [False, False, True]
+        # Clicking the partial state selects all, including search-hidden rows.
+        window.check_all.click()
+        assert all(row.checked for row in window.model.rows)
+        window.model.setData(
+            window.model.index(0, window.model.CHECK),
+            Qt.CheckState.Unchecked,
+            Qt.ItemDataRole.CheckStateRole,
+        )
+        assert window.check_all.checkState() == Qt.CheckState.PartiallyChecked
+        window.model.remove_ids({photo.id for photo in photos})
+        assert not window.check_all.isEnabled()
+        assert not window.check_selected_button.isEnabled()
+        assert window.check_all.checkState() == Qt.CheckState.Unchecked
+    finally:
+        _close(qtbot, window)
