@@ -145,7 +145,7 @@ def main() -> int:
             embed_file(args)
         else:
             extract_file(args)
-    except (OSError, ValueError, KeyError) as error:
+    except (OSError, ValueError, KeyError, TypeError) as error:
         parser.exit(2, f"Frequency watermark experiment failed: {error}\n")
     return 0
 

@@ -10,6 +10,7 @@ directory of the frozen application and in the release license archive.
 | CPython | 3.12.3 | PSF and incorporated licenses: https://github.com/python/cpython/tree/v3.12.3 |
 | PySide6 Essentials / Shiboken6 / Qt | 6.11.2 | Qt for Python and the used Qt Core, GUI, Widgets, SVG and platform/image plugins: https://github.com/pyside/pyside-setup/tree/v6.11.2 and https://github.com/qt/qtbase/tree/v6.11.2 ; LGPL-3.0, GPL alternatives and component-specific third-party notices are in the license archive. |
 | Pillow | 12.3.0 | HPND and incorporated codec licenses; installed distribution's complete LICENSE is included. https://github.com/python-pillow/Pillow/tree/12.3.0 |
+| NumPy | 2.5.3 | BSD-3-Clause and incorporated FFT/RNG/linear-algebra notices; the installed distribution's complete licenses directory is included. https://github.com/numpy/numpy/tree/v2.5.3 |
 | fontTools | 4.66.1 | MIT and external component notices: https://github.com/fonttools/fonttools/tree/4.66.1 |
 | openpyxl | 3.1.5 | MIT: https://pypi.org/project/openpyxl/3.1.5/ |
 | et_xmlfile | 2.0.0 | MIT: https://pypi.org/project/et-xmlfile/2.0.0/ |
