@@ -238,6 +238,11 @@ def run_self_test(report: Path) -> int:
                 show_main_window(window)
                 application.processEvents()
                 _check(window.isVisible(), "JPG window did not open")
+                _check(
+                    not window.windowIcon().isNull()
+                    and not window.windowIcon().pixmap(32, 32).isNull(),
+                    "Bundled application icon cannot be rendered",
+                )
                 expected_output = (
                     Path(sys.executable).resolve().parent if result["frozen"] else Path.cwd()
                 )
@@ -500,6 +505,7 @@ def run_self_test(report: Path) -> int:
                     "startup_maximized",
                     "workflow_gutter_stability",
                     "default_output_directory",
+                    "application_icon",
                 ],
             )
     except Exception as error:  # noqa: BLE001 - windowless builds report all smoke failures

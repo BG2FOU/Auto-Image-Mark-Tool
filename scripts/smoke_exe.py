@@ -77,6 +77,7 @@ def main() -> int:
                 "startup_maximized",
                 "workflow_gutter_stability",
                 "default_output_directory",
+                "application_icon",
             ],
         }
         if completed.returncode != 0 or data != expected:

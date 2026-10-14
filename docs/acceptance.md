@@ -599,3 +599,11 @@ rc.5 用 viewport 实时尺寸计算字号，滚动条出现后挤窄区域，�
 - EXE 归档 992 项、Python 模块 896 项与 x64 PE 版本 0.5.0rc2 核验通过，无私人素材/配置、RAW 显影库、未跟踪 demo、Wine 系统或 ICU 适配 DLL。ZIP 完整性、内部 EXE 与外部校验文件一致。
 
 新交付位于本地忽略目录 `build/v05-review-rc2/`，包含 EXE、ZIP、BUILD_INFO.json、SHA256SUMS.txt 与 README-test.txt；上一审查包保留。EXE 72,416,065 字节，SHA256 `b795ec76a8713ad6e0229d2340bf9c0fc9e9eb473f90b0f7d734e80901d9b384`；ZIP SHA256 `6cafc9e0b99f96938d6478b7c097fa31bc3d08b5a2dc6b67b4c7b27eed4578f0`。代码及记录在修复分支提交推送，main、已有 Release 和标签不变；原生 Windows 用户审查仍待反馈，未进行正式发布。
+
+## v0.5.0 图标接入及发布准备（2026-10-14）
+
+用户提供 `data/deathstar.ico` 并新授权加入图标、提交推送后发布当前版本。以该指令继续合并和正式构建发布，取代上一审查包等待反馈的操作顺序；尚未取得单独的原生 Windows 人工检查记录，不将授权写成该结果。
+
+公开程序图标保存在 `src/aim_tool/resources/deathstar.ico`，与用户提供的原文件逐字节一致，SHA256 `d179fb69516318d49960326ed84ef27e7e9316d37cd7908ff4c6a3820faece59`；含 16/24/32/48/64/72/96/128/256 px 共 9 个尺寸。Windows EXE 使用此 ICO 作为 PE 图标，Qt 应用及窗口从包内加载，wheel/冻结包显式纳入；Linux DEB 用同一 256 px 帧生成标准桌面 PNG。原始 data 文件保留，不把其余私人照片、字体、签名、配置、demo 或测试包纳入。
+
+源版本更新为正式 0.5.0；稳定标签的 Release 不标 prerelease，rc 标签策略不变。本地 343 passed、2 Windows 平台 skipped、9 RAW/visual deselected；全树 Ruff/格式、严格 mypy、pip check 及 27 类源码自检通过（增加 application_icon），启动/窗口图标 16 和 256 px 可渲染。提交推送、精确 Windows CI、两平台构建和公开下载的结果在完成后追加，不提前记为发布成功。

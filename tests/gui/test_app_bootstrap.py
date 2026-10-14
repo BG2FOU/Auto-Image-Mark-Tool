@@ -25,6 +25,9 @@ def test_main_launch_starts_maximized_without_entering_borderless_fullscreen(qtb
     show_main_window(window)
     assert window.isVisible() and window.isMaximized()
     assert not window.isFullScreen()
+    assert not window.windowIcon().isNull()
+    assert not window.windowIcon().pixmap(16, 16).isNull()
+    assert not window.windowIcon().pixmap(256, 256).isNull()
     window.close()
 
 

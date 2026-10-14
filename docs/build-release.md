@@ -1,6 +1,6 @@
 # 照片坐标与 JPG 水印版构建与发布
 
-本期版本源为 `src/aim_tool/__init__.py`（0.4.0rc5），标签为 `v0.4.0-rc.5`。支持 JPG/JPEG 三流程、可见水印附加 DCT/FFT 频域水印，以及按文件完整性检查的 Nikon NEF 坐标副本写入；RAW 显影与水印延后。旧 GPS-only 构建脚本和 Release 保留。
+本期版本源为 `src/aim_tool/__init__.py`（0.5.0），标签为 `v0.5.0`。支持 JPG/JPEG 三流程、可见水印附加 DCT/FFT 频域水印，以及按文件完整性检查的 Nikon NEF 坐标副本写入；RAW 显影与水印延后。旧 GPS-only 构建脚本和 Release 保留。
 
 ## 固定工具链
 
@@ -30,6 +30,8 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/build_deb.py
 rc.5 冻结自检共 23 类，在既有 19 类基础上增加 digital_defaults、dct_fft_watermark、batch_selection、capture_time_sort；实际执行 DCT/FFT 嵌入、最终 JPG 解码提取，以及排序/过滤后的批量选择操作。用户已在本次会话明确授权合并、构建与 Release，发布顺序按 docs/plan.md 第 15 节更新。源 CI、正式构建和公开下载验证分别记录；此前本地 Windows 测试包的人工反馈尚未取得，自动化验收不替代该反馈。
 
 ## CI 和发布
+
+v0.5.0 包含包内 deathstar.ico、Windows EXE 多尺寸图标以及 Linux 桌面 PNG 图标；原始 data 文件不随其他私人素材纳入。冻结自检增加程序图标可加载/渲染，共 27 类，实际默认输出目录仍取 EXE 所在目录。用户本次已明确授权图标加入后正式发布，顺序见 docs/plan.md 第 17 节。稳定标签发布为正常 Release，rc 标签为预发布。
 
 `.github/workflows/release.yml` 固定 Actions SHA、Python 和 Windows 2022/Ubuntu 24.04 runner。默认只有读取权限，发布 job 才获得 `contents:write`。主分支 `workflow_dispatch` 留空 tag、publish=false 可以构建、测试并生成附件而不创建 Release。
 

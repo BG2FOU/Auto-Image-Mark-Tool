@@ -45,6 +45,7 @@ jobs:
           with ZipFile(wheel) as package:
               names = package.namelist()
           assert "aim_tool/resources/default_templates.json" in names
+          assert "aim_tool/resources/deathstar.ico" in names
           assert not any(
               token in name
               for name in names

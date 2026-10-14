@@ -82,6 +82,8 @@ def main() -> int:
         info = json.loads((directory / "BUILD_INFO.json").read_text(encoding="utf-8"))
         if info["tag"] != tag or info["commit"] != head:
             raise ValueError("Build evidence does not match source")
+        if info["application_icon_sha256"] != digest(ROOT / "src/aim_tool/resources/deathstar.ico"):
+            raise ValueError("Application icon does not match the approved source")
         if (info["python"], info["pyinstaller"], info["exiftool"]) != ("3.12.3", "6.22.3", "13.59"):
             raise ValueError("Build toolchain does not match pinned versions")
         if (

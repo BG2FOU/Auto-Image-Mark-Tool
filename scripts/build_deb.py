@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from PIL import Image
+
 from aim_tool import __version__
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -58,9 +60,13 @@ def main() -> int:
     desktop.parent.mkdir(parents=True)
     desktop.write_text(
         "[Desktop Entry]\nType=Application\nName=Auto Image Mark Tool\n"
-        "Exec=auto-image-mark-tool\nTerminal=false\nCategories=Graphics;Photography;\n",
+        "Exec=auto-image-mark-tool\nIcon=auto-image-mark-tool\nTerminal=false\nCategories=Graphics;Photography;\n",
         encoding="utf-8",
     )
+    icon = stage / "usr/share/icons/hicolor/256x256/apps/auto-image-mark-tool.png"
+    icon.parent.mkdir(parents=True)
+    with Image.open(ROOT / "src/aim_tool/resources/deathstar.ico") as image:
+        image.convert("RGBA").save(icon)
     docs = stage / f"usr/share/doc/{PACKAGE}"
     docs.mkdir(parents=True)
     shutil.copy2(ROOT / "LICENSE", docs / "copyright")

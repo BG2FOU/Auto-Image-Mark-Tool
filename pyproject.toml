@@ -47,7 +47,7 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-"aim_tool.resources" = ["default_templates.json"]
+"aim_tool.resources" = ["default_templates.json", "deathstar.ico"]
 
 [tool.setuptools.dynamic]
 version = {attr = "aim_tool.__version__"}

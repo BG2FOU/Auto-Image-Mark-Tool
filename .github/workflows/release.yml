@@ -241,7 +241,9 @@ jobs:
           if gh release view "$RELEASE_TAG" --json isDraft > build/release-state.json 2>/dev/null; then
             python3 -c "import json; assert json.load(open('build/release-state.json'))['isDraft'], 'Published releases cannot be replaced'"
           else
-            gh release create "$RELEASE_TAG" --verify-tag --draft --prerelease --title "Auto Image Mark Tool $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
+            prerelease_args=()
+            if [[ "$RELEASE_TAG" == *-rc.* ]]; then prerelease_args+=(--prerelease); fi
+            gh release create "$RELEASE_TAG" --verify-tag --draft "${prerelease_args[@]}" --title "Auto Image Mark Tool $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
           fi
           gh release upload "$RELEASE_TAG" dist/release/* --clobber
           gh release download "$RELEASE_TAG" --dir build/release-download

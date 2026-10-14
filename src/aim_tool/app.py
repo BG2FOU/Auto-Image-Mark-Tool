@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import sys
+from importlib.resources import files
 
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMainWindow
 
 from aim_tool.ui.gps_window import GpsWindow
@@ -28,6 +30,11 @@ def run_gui(*, gps_only: bool = False) -> int:
 
 def show_main_window(window: QMainWindow, *, gps_only: bool = False) -> None:
     """Enter the intended initial state directly, before painting a normal window."""
+    icon = QIcon(str(files("aim_tool.resources").joinpath("deathstar.ico")))
+    application = QApplication.instance()
+    if isinstance(application, QApplication):
+        application.setWindowIcon(icon)
+    window.setWindowIcon(icon)
     if gps_only:
         window.show()
     else:

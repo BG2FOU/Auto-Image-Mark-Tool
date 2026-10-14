@@ -34,7 +34,7 @@ a = Analysis(
     pathex=[str(root / "src")],
     binaries=[],
     datas=tool_data
-    + collect_data_files("aim_tool.resources", includes=["default_templates.json"])
+    + collect_data_files("aim_tool.resources", includes=["default_templates.json", "deathstar.ico"])
     + [
         (str(root / "LICENSE"), "."),
         (str(root / "THIRD_PARTY_NOTICES.md"), "."),
@@ -82,6 +82,7 @@ options = dict(
 )
 if sys.platform == "win32":
     options["version"] = str(root / "build/jpg-version-info.txt")
+    options["icon"] = str(root / "src/aim_tool/resources/deathstar.ico")
 if mode == "onefile":
     exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], **options)
 else:
