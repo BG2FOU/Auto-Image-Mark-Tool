@@ -7,7 +7,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QMainWindow
 from pytestqt.qtbot import QtBot
 
-from aim_tool.app import create_main_window
+from aim_tool.app import create_main_window, show_main_window
 
 
 def test_empty_window_starts(qtbot: QtBot) -> None:
@@ -17,6 +17,23 @@ def test_empty_window_starts(qtbot: QtBot) -> None:
     assert isinstance(window, QMainWindow)
     assert window.isVisible()
     assert window.windowTitle() == "Auto Image Mark Tool"
+
+
+def test_main_launch_starts_maximized_without_entering_borderless_fullscreen(qtbot: QtBot) -> None:
+    window = create_main_window()
+    qtbot.addWidget(window)
+    show_main_window(window)
+    assert window.isVisible() and window.isMaximized()
+    assert not window.isFullScreen()
+    window.close()
+
+
+def test_standalone_gps_keeps_its_existing_initial_window_state(qtbot: QtBot) -> None:
+    window = create_main_window(gps_only=True)
+    qtbot.addWidget(window)
+    show_main_window(window, gps_only=True)
+    assert window.isVisible() and not window.isMaximized()
+    window.close()
 
 
 def test_jpg_selftest_resolves_temp_directory_alias(tmp_path: Path) -> None:

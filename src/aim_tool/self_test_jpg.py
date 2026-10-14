@@ -20,6 +20,7 @@ from PySide6.QtCore import QEventLoop, QItemSelectionModel, Qt, QTimer
 from PySide6.QtWidgets import QApplication, QLabel
 
 from aim_tool import __version__
+from aim_tool.app import show_main_window
 from aim_tool.domain import BatchJob, ItemStatus, LocationPreset, PhotoItem, StepSpec, WorkflowSpec
 from aim_tool.services.exiftool import ExifTool
 from aim_tool.services.nef_gps import fingerprint_nef
@@ -234,9 +235,25 @@ def run_self_test(report: Path) -> int:
                 workflow_store=ConfigStore(root / "workflows.json"),
             )
             try:
-                window.show()
+                show_main_window(window)
                 application.processEvents()
                 _check(window.isVisible(), "JPG window did not open")
+                _check(
+                    window.isMaximized() and not window.isFullScreen(), "Startup is not maximized"
+                )
+                panel = window.workflow
+                states = []
+                for policy in (
+                    Qt.ScrollBarPolicy.ScrollBarAlwaysOff,
+                    Qt.ScrollBarPolicy.ScrollBarAlwaysOn,
+                ):
+                    panel.scroll_area.setVerticalScrollBarPolicy(policy)
+                    application.processEvents()
+                    panel._fit_text()
+                    states.append((panel._text_sizes, panel.content.minimumHeight()))
+                _check(states[0] == states[1], "Scrollbar feeds back into workflow sizing")
+                panel.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+                window.showNormal()
                 _batch_selection_smoke(root, window)
                 _check(
                     window.workflow.presets.currentData() == "location"
@@ -467,6 +484,8 @@ def run_self_test(report: Path) -> int:
                     "dct_fft_watermark",
                     "batch_selection",
                     "capture_time_sort",
+                    "startup_maximized",
+                    "workflow_gutter_stability",
                 ],
             )
     except Exception as error:  # noqa: BLE001 - windowless builds report all smoke failures

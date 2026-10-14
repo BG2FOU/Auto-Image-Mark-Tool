@@ -74,6 +74,8 @@ def main() -> int:
                 "dct_fft_watermark",
                 "batch_selection",
                 "capture_time_sort",
+                "startup_maximized",
+                "workflow_gutter_stability",
             ],
         }
         if completed.returncode != 0 or data != expected:

@@ -72,6 +72,8 @@ def main() -> int:
                     "dct_fft_watermark",
                     "batch_selection",
                     "capture_time_sort",
+                    "startup_maximized",
+                    "workflow_gutter_stability",
                 ],
                 "private_assets": "excluded",
                 "nef": "gps_only_with_integrity_checks",

@@ -3,12 +3,13 @@
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QPoint
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QCheckBox, QLabel, QPushButton
 from pytestqt.qtbot import QtBot
 
 from aim_tool.services.storage import ConfigStore, WatermarkSettingsStore
 from aim_tool.ui.main_window import MainWindow
+from aim_tool.ui.workflow_panel import WorkflowPanel
 
 
 def _assert_readable(window: MainWindow) -> None:
@@ -64,3 +65,30 @@ def test_workflow_resizes_scrolls_and_restores_text(
         qtbot.waitUntil(lambda: panel.scroll_area.verticalScrollBar().maximum() == 0)
         _assert_readable(window)
     window.close()
+
+
+@pytest.mark.parametrize("width", [212, 220, 232])
+def test_scrollbar_gutter_does_not_feed_back_into_font_or_height(
+    qtbot: QtBot, tmp_path: Path, width: int
+) -> None:
+    panel = WorkflowPanel(ConfigStore(tmp_path / "workflows.json"))
+    qtbot.addWidget(panel)
+    panel.resize(width, 560)
+    panel.show()
+    qtbot.wait(50)
+    states = []
+    for policy in (
+        Qt.ScrollBarPolicy.ScrollBarAlwaysOff,
+        Qt.ScrollBarPolicy.ScrollBarAlwaysOn,
+        Qt.ScrollBarPolicy.ScrollBarAlwaysOff,
+    ):
+        panel.scroll_area.setVerticalScrollBarPolicy(policy)
+        qtbot.wait(20)
+        panel._fit_text()
+        states.append((panel._text_sizes, panel.content.minimumHeight()))
+    assert states[0] == states[1] == states[2]
+    # After startup and gutter changes settle, there must be no recurring resize work.
+    sizes = panel._text_sizes
+    qtbot.wait(150)
+    assert panel._text_sizes == sizes
+    assert not panel._resize_timer.isActive()

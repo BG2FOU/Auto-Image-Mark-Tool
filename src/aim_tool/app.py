@@ -22,5 +22,13 @@ def run_gui(*, gps_only: bool = False) -> int:
     application.setApplicationName("Auto Image Mark Tool")
     application.setStyle("Fusion")
     window = create_main_window(gps_only=gps_only)
-    window.show()
+    show_main_window(window, gps_only=gps_only)
     return application.exec()
+
+
+def show_main_window(window: QMainWindow, *, gps_only: bool = False) -> None:
+    """Enter the intended initial state directly, before painting a normal window."""
+    if gps_only:
+        window.show()
+    else:
+        window.showMaximized()

@@ -6,6 +6,7 @@ from collections.abc import Mapping
 
 from platformdirs import user_config_path
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Signal
+from PySide6.QtGui import QShowEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -110,36 +111,51 @@ class WorkflowPanel(QWidget):
         self._resize_timer = QTimer(self)
         self._resize_timer.setSingleShot(True)
         self._resize_timer.timeout.connect(self._fit_text)
-        self.scroll_area.viewport().installEventFilter(self)
-        self._resize_timer.start(0)
+        self.scroll_area.installEventFilter(self)
+        # Apply the compact baseline before the first layout or paint. The final
+        # visible geometry is fitted synchronously in showEvent.
+        self._set_text_sizes((12, 14, 11, 16))
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if watched is self.scroll_area.viewport() and event.type() == QEvent.Type.Resize:
+        if watched is self.scroll_area and event.type() == QEvent.Type.Resize and self.isVisible():
             self._resize_timer.start(0)
         return super().eventFilter(watched, event)
 
+    def showEvent(self, event: QShowEvent) -> None:
+        self._resize_timer.stop()
+        self._fit_text()
+        super().showEvent(event)
+
+    def _set_text_sizes(self, sizes: tuple[int, ...]) -> None:
+        if sizes == self._text_sizes:
+            return
+        self._text_sizes = sizes
+        body, heading, muted, number = sizes
+        self.content.setStyleSheet(
+            f"QWidget {{ font-size: {body}px; }}"
+            "QWidget#workflowContent { background: white; }"
+            f"QLabel#sectionTitle {{ font-size: {heading}px; }}"
+            f"QLabel#muted {{ font-size: {muted}px; }}"
+            f"QLabel#stepNumber {{ font-size: {number}px; }}"
+        )
+
     def _fit_text(self) -> None:
         """Use smaller readable text, then scroll instead of crushing workflow cards."""
-        viewport = self.scroll_area.viewport()
-        scale = max(0.9, min(1.0, viewport.width() / 210, viewport.height() / 480))
+        area = self.scroll_area.contentsRect()
+        # A scrollbar changes the viewport width. Basing font size on that width
+        # makes font changes feed back into scrollbar visibility and back again.
+        scale = max(0.9, min(1.0, area.width() / 210, area.height() / 480))
         sizes = tuple(round(size * scale) for size in (13, 15, 12, 18))
-        if sizes != self._text_sizes:
-            self._text_sizes = sizes
-            body, heading, muted, number = sizes
-            self.content.setStyleSheet(
-                f"QWidget {{ font-size: {body}px; }}"
-                "QWidget#workflowContent { background: white; }"
-                f"QLabel#sectionTitle {{ font-size: {heading}px; }}"
-                f"QLabel#muted {{ font-size: {muted}px; }}"
-                f"QLabel#stepNumber {{ font-size: {number}px; }}"
-            )
+        self._set_text_sizes(sizes)
         layout = self.content.layout()
         assert layout is not None
-        # Include wrapped lines at the actual viewport width, including scrollbar space.
-        # A font floor alone cannot fit an entire workflow into a short window.
+        # Always reserve the scrollbar gutter when measuring wrapped text, so
+        # showing/hiding the bar cannot change the requested content height.
+        width = max(1, area.width() - self.scroll_area.verticalScrollBar().sizeHint().width())
         layout.invalidate()
-        height = layout.totalHeightForWidth(viewport.width())
-        self.content.setMinimumHeight(max(height, layout.minimumSize().height()))
+        height = max(layout.totalHeightForWidth(width), layout.minimumSize().height())
+        if self.content.minimumHeight() != height:
+            self.content.setMinimumHeight(height)
         layout.activate()
 
     def _refresh(self) -> None:
