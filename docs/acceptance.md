@@ -607,3 +607,17 @@ rc.5 用 viewport 实时尺寸计算字号，滚动条出现后挤窄区域，�
 公开程序图标保存在 `src/aim_tool/resources/deathstar.ico`，与用户提供的原文件逐字节一致，SHA256 `d179fb69516318d49960326ed84ef27e7e9316d37cd7908ff4c6a3820faece59`；含 16/24/32/48/64/72/96/128/256 px 共 9 个尺寸。Windows EXE 使用此 ICO 作为 PE 图标，Qt 应用及窗口从包内加载，wheel/冻结包显式纳入；Linux DEB 用同一 256 px 帧生成标准桌面 PNG。原始 data 文件保留，不把其余私人照片、字体、签名、配置、demo 或测试包纳入。
 
 源版本更新为正式 0.5.0；稳定标签的 Release 不标 prerelease，rc 标签策略不变。本地 343 passed、2 Windows 平台 skipped、9 RAW/visual deselected；全树 Ruff/格式、严格 mypy、pip check 及 27 类源码自检通过（增加 application_icon），启动/窗口图标 16 和 256 px 可渲染。提交推送、精确 Windows CI、两平台构建和公开下载的结果在完成后追加，不提前记为发布成功。
+
+### v0.5.0 正式发布与公开下载验证
+
+图标/版本准备提交为 `d4269dbeb116d57e9b226cddba6ffe23b1ee5f52`，已推送修复分支、快进合并并推送 main，两份远端源 SHA 一致；新 `v0.5.0` 标签解引用为同一提交，历史标签/公开附件未改动。源码 Windows CI [38587631203](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/38587631203) 全部成功：247 单元、42 GUI、32 流水线测试通过（1 visual deselected），含图标可渲染及新增批处理/启动布局测试。干净 Git 快照构建的 wheel 50 项审计通过，程序图标哈希与用户原文件一致，无私人素材或未跟踪 demo。
+
+正式流程 [38588394928](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/38588394928) prepare、windows、linux、assemble、publish、verify-published-windows 全部成功。Windows 目录版、单文件及中文含空格路径、Linux DEB 和解包程序均通过 27 类冻结自检。公开 EXE 在原生 Windows runner 独立下载、校验 SHA256/源身份后于中文路径执行完整 27 类自检通过；测试不代替用户桌面人工反馈。
+
+[v0.5.0](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.5.0) 于北京时间 2026-10-14 23:29:53 正式公开，isDraft=false、isPrerelease=false，GitHub latest 指向 v0.5.0；7 份附件完整。全部公开附件下载至本地忽略目录 `build/published-v0.5.0`，在标签源上执行 `check_release.py --tag v0.5.0 --dist build/published-v0.5.0` 通过，所有载荷哈希、源 SHA、固定工具链、公开图标 SHA256 和附件集合一致。
+
+公开 Windows ZIP 1,411 项、LICENSES.zip 584 项、实际公开 DEB 解包 1,006 文件的完整性、许可及资源审计通过。原生 EXE 的 RT_ICON 共 9 个图像资源逐项与原 ICO 图像数据 SHA256 匹配；ZIP/DEB 的包内 ICO 均与原文件哈希一致。DEB 标准桌面 PNG 与原 ICO 256 px 帧逐像素 RGBA 一致，desktop 的 Icon 字段有效。仅该用户授权的桌面图标 PNG 被单独允许，其他 PNG/照片/字体/签名/个人配置、RAW 显影库、未跟踪 demo 仍排除；NumPy 两平台供应商许可子树完整。
+
+实际下载的 DEB 解包程序再次通过 27 类离线自检（version=0.5.0、frozen=true、ok=true、ExifTool=13.59），日志和审计摘要留在本地忽略目录。公开 EXE 76,681,562 字节、SHA256 `83b3ebe72707c1cf6f60d609843ab02a2fcd623da6e12a48b1db782615e472df`；ZIP 77,056,314 字节；DEB 82,470,176 字节，内部版本 0.5.0。EXE 未签名；NEF 显影/水印和未知几何变换自动水印同步未开放。
+
+本验收说明在全部发布/下载验证后另行提交；后续 main 文档提交不改变 v0.5.0 标签、发布源或附件。用户提供的原始 data/deathstar.ico 保留本地，公开资源副本已纳入源码及程序包；私人文件和测试包不提交。

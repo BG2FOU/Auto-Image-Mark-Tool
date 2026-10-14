@@ -23,9 +23,9 @@ Linux（Ubuntu 24.04 / amd64 基线）：
 QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/build_deb.py
 ```
 
-两平台复用 `packaging/AutoImageMarkTool.spec`。Windows 适配器直接使用固定包内的 Perl 和相对 exiftool.pl/lib。路径优先使用系统代码页可无损表示的名称或现有 DOS 短路径；无短路径的中文安装目录会将未经修改的支持运行时复制到用户临时目录（必要时使用 LOCALAPPDATA），在对象释放时清理。只复制公开 ExifTool 运行时，不复制照片、字体、签名或用户设置；不依赖外部 Perl，不修改磁盘短路径设置。临时根目录也须能由系统代码页或短路径表示，否则明确提示设置可写的 ASCII TEMP，不静默继续。公共接口及 13.59 版本校验保持有效。构建脚本会运行 `--self-test-jpg --report`，从源码目录外启动实际冻结程序，清除外部 ExifTool/PYTHONPATH/Qt 插件路径，并把 PATH 限制为系统目录，使用临时自有合成字体/签名/JPG/XLSX，验证 GUI、地点保存、预览、GPS+水印、方向、ICC、拍摄日期、源哈希和清理。旧 `--self-test` GPS 接口保持不变。自测不联网，不读取用户照片。冻结自测共 23 类，包含海拔读回、批量坐标转换/列表追加、无关编辑列表警告兼容、DCT/FFT、批量勾选和拍摄时间排序。`nef_scope` 检查验证伪 NEF 拒绝、预览/水印边界和未加载 RAW 显影库；`nef_gps` 使用合成 Nikon TIFF/NEF 容器验证坐标、卫星数、日期和数据保护，不替代真实样片验收。真实 NEF 只在本地授权样片上验证；历史 Z5 试写已获用户独立软件确认，新版的 Windows RAW 属性显示尚未逐机型核验。DEB 解包后再执行同一自测。
+两平台复用 `packaging/AutoImageMarkTool.spec`。Windows 适配器直接使用固定包内的 Perl 和相对 exiftool.pl/lib。路径优先使用系统代码页可无损表示的名称或现有 DOS 短路径；无短路径的中文安装目录会将未经修改的支持运行时复制到用户临时目录（必要时使用 LOCALAPPDATA），在对象释放时清理。只复制公开 ExifTool 运行时，不复制照片、字体、签名或用户设置；不依赖外部 Perl，不修改磁盘短路径设置。临时根目录也须能由系统代码页或短路径表示，否则明确提示设置可写的 ASCII TEMP，不静默继续。公共接口及 13.59 版本校验保持有效。构建脚本会运行 `--self-test-jpg --report`，从源码目录外启动实际冻结程序，清除外部 ExifTool/PYTHONPATH/Qt 插件路径，并把 PATH 限制为系统目录，使用临时自有合成字体/签名/JPG/XLSX，验证 GUI、地点保存、预览、GPS+水印、方向、ICC、拍摄日期、源哈希和清理。旧 `--self-test` GPS 接口保持不变。自测不联网，不读取用户照片。冻结自测共 27 类，包含海拔读回、批量坐标转换/列表追加、无关编辑列表警告兼容、DCT/FFT、批量勾选和拍摄时间排序。`nef_scope` 检查验证伪 NEF 拒绝、预览/水印边界和未加载 RAW 显影库；`nef_gps` 使用合成 Nikon TIFF/NEF 容器验证坐标、卫星数、日期和数据保护，不替代真实样片验收。真实 NEF 只在本地授权样片上验证；历史 Z5 试写已获用户独立软件确认，新版的 Windows RAW 属性显示尚未逐机型核验。DEB 解包后再执行同一自测。
 
-`dist/AutoImageMarkTool/` 为目录版；Windows `dist/AutoImageMarkTool.exe` 为单文件版；Linux DEB 版本使用 Debian 的 `0.4.0~rc5` 排序。字体、签名必须由用户在本地设置中选择，首次启动不会自带私人素材。冻结自测不代表商用字体的人工视觉验收，也不代替独立 Windows 10 桌面交互检查。
+`dist/AutoImageMarkTool/` 为目录版；Windows `dist/AutoImageMarkTool.exe` 为单文件版；Linux DEB 版本使用 Debian 的 `0.5.0` 版本。字体、签名必须由用户在本地设置中选择，首次启动不会自带私人素材。冻结自测不代表商用字体的人工视觉验收，也不代替独立 Windows 10 桌面交互检查。
 
 rc.5 冻结自检共 23 类，在既有 19 类基础上增加 digital_defaults、dct_fft_watermark、batch_selection、capture_time_sort；实际执行 DCT/FFT 嵌入、最终 JPG 解码提取，以及排序/过滤后的批量选择操作。用户已在本次会话明确授权合并、构建与 Release，发布顺序按 docs/plan.md 第 15 节更新。源 CI、正式构建和公开下载验证分别记录；此前本地 Windows 测试包的人工反馈尚未取得，自动化验收不替代该反馈。
 
@@ -42,6 +42,8 @@ v0.5.0 包含包内 deathstar.ico、Windows EXE 多尺寸图标以及 Linux 桌�
 恢复入口为 workflow_dispatch 的既有 tag 和 publish=true。同标签串行；仅允许更新未发布草稿，已发布内容不能静默替换。失败修复需提交并验证，新代码必须使用新版本/标签；不要移动已有标签。回滚使用上一份已发布包，不覆盖新版附件。依赖升级需重新生成锁文件、核对许可源哈希并走全部测试。
 
 ## 已发布版本与下载验证
+
+[v0.5.0](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.5.0) 为最新正式版，源 SHA `d4269dbeb116d57e9b226cddba6ffe23b1ee5f52`，Windows 源码 CI `38587631203` 和正式流程 `38588394928` 全部成功。公开 EXE 中文路径与实际下载 DEB 的 27 类自检通过；7 份附件、两平台许可、私人资源排除、EXE 的 9 个图标图像、包内 ICO 及 Linux 桌面 PNG 均已独立验证。详见 [验收记录](acceptance.md)。
 
 [v0.4.0-rc.5](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.5) 对应源 SHA `17a5e90af5320ddabe79f31e189e1022b6823a24`；源码 Windows CI `38425453869` 和正式流程 `38426182082` 全部成功。公开 Windows EXE 中文下载路径和公开 Linux DEB 解包程序均通过 23 类离线自检。全部 7 份附件的哈希/构建身份、ZIP/DEB 私人资源排除、两平台 NumPy 许可子树已独立验证。完整证据见 [验收记录](acceptance.md)。
 

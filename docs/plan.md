@@ -696,3 +696,5 @@ rc2 审查包完成：源 `b821128` 已推送，343 passed、2 skipped、9 desel
 保留原始 data 文件，将逐字节一致的公开程序资源复制到 `src/aim_tool/resources/deathstar.ico` 并提交该资源。ICO 含 16–256 px 的 9 个尺寸；PyInstaller Windows EXE 嵌入同一 ICO，Qt 应用/窗口读取包内资源，wheel 和冻结包显式纳入；Linux DEB 从其 256 px 帧生成同内容的标准桌面图标。程序图标是本次用户明确授权分发的资源，不放开私人照片、字体、签名或其他 data 文件的分发。
 
 源版本更新为 0.5.0；稳定标签的 Release 不再标为 prerelease，rc 标签仍维持原预发布方式。顺序为本地回归/静态/27 类源码自检 → 命名路径暂存提交推送 → 合并 main，核对精确源提交 Windows CI → 新版本标签/两平台正式构建 → 全部公开下载哈希、源身份、EXE 图标资源及 ZIP/DEB 图标/许可/私人资源审计和冻结自检 → 记录交付结果。保留历史标签及公开包，不提交本地测试包、未跟踪 demo 或私人素材。
+
+完成记录：源 `d4269db` 已提交推送、合并 main，Windows CI `38587631203` 全部成功后发布新正式标签 v0.5.0；流程 `38588394928` 全部 job 成功，GitHub latest 为正式 v0.5.0。7 份公开附件下载验证、EXE 9 个图标资源与 ICO/PNG/许可/私人资源独立审计、公开 Windows 中文路径与实际 DEB 的 27 类冻结自检通过，详见 `docs/acceptance.md`。新授权已执行完毕，不将其写成用户原生 Windows 人工测试记录。
