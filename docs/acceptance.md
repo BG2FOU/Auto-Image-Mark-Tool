@@ -585,3 +585,17 @@ rc.5 用 viewport 实时尺寸计算字号，滚动条出现后挤窄区域，�
 本地忽略目录 `build/v05-review/` 包含单文件 EXE、审查 ZIP、BUILD_INFO.json、SHA256SUMS.txt 和 README-test.txt。EXE 为 72,413,506 字节，SHA256 `882274fe8193f91bca19b7a3173793258b31a32565fffed94520a5cc0c0300f0`；ZIP SHA256 `c19b5e3feb6fd9269c96bfd595c4ed79c4d937bde46e24e6a6e697ca72f890b2`。二进制、截图、私有资源和运行日志不提交 Git。
 
 请在原生 Windows 重新启动两三次观察最初几秒，检查默认最大化、还原/再最大化、日常显示缩放及展开日志/滚动后的侧栏；用户审查结果当前为 pending。按本次用户指令，确认通过后再准备正式 0.5.0、合并、源 CI 和正式发布/下载验证。本记录不表示 v0.5 已发布或原生 Windows 闪动已获人工确认。
+
+### 第二版审查包：表头选择与 EXE 默认输出目录
+
+按用户新增指令，全选框移到“处理”列头文字前，仅保留勾选框；tooltip 与无障碍名称仍说明全选/全不选及搜索隐藏项范围。复选框随列宽、列移动与水平滚动定位，鼠标点击不触发列排序，三态及稳定 ID 逻辑不变。“勾选选中 / 取消勾选选中”移动到照片计数和搜索框之间，不再占用额外工具行。
+
+输出目录在冻结程序中默认实际 `sys.executable` 所在目录，不使用当前工作目录或 `_MEIPASS` 临时解包位置；源码启动取当前工作目录。可继续手动修改/选择输出位置，原片目录、重复产物及不可写路径的原有检查仍有效。使用新的候选版本 `0.5.0rc2` 区分上一审查包，源提交 `b82112808dc312c38154aea0cf23c770edf06a45` 已推送并核对远端 SHA。
+
+- 12 项关联 GUI 回归通过，覆盖鼠标点击表头框不改排序、空列表禁用、单行/多行与搜索范围、表头列宽变化、控件顺序、默认 EXE 目录及仍可手动更改。实际 1440×900 原生 Qt 界面渲染已检查，截图保持本地。
+- 表头操作与默认输出目录两项在 150% 显示缩放下再次通过。
+- 完整非 RAW/visual 回归 343 passed、2 Windows 平台 skipped、9 deselected；全树 Ruff/格式、严格 mypy、pip check 和 26 类源码自检通过，新增 default_output_directory 检查并同步冻结验证/构建清单。
+- 本地离线固定 Windows 工具链从 Git 快照构建，150 个源文件验证。Windows 环境安装版本与 pip check 通过。沿用正确的 Wine UTF-8 主机/干净 Windows 子进程 locale，首次 rc2 构建及 26 类冻结自检通过；同一个 EXE 移到中文含空格目录后 26 类复测通过，包含移动后真实 EXE 目录的默认输出值。
+- EXE 归档 992 项、Python 模块 896 项与 x64 PE 版本 0.5.0rc2 核验通过，无私人素材/配置、RAW 显影库、未跟踪 demo、Wine 系统或 ICU 适配 DLL。ZIP 完整性、内部 EXE 与外部校验文件一致。
+
+新交付位于本地忽略目录 `build/v05-review-rc2/`，包含 EXE、ZIP、BUILD_INFO.json、SHA256SUMS.txt 与 README-test.txt；上一审查包保留。EXE 72,416,065 字节，SHA256 `b795ec76a8713ad6e0229d2340bf9c0fc9e9eb473f90b0f7d734e80901d9b384`；ZIP SHA256 `6cafc9e0b99f96938d6478b7c097fa31bc3d08b5a2dc6b67b4c7b27eed4578f0`。代码及记录在修复分支提交推送，main、已有 Release 和标签不变；原生 Windows 用户审查仍待反馈，未进行正式发布。
