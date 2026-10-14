@@ -18,9 +18,11 @@ from PySide6.QtCore import (
     Qt,
     Signal,
 )
-from PySide6.QtGui import QBrush, QColor, QDragEnterEvent, QDropEvent
+from PySide6.QtGui import QBrush, QColor, QDragEnterEvent, QDropEvent, QResizeEvent
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
+    QHeaderView,
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QTableView,
@@ -89,6 +91,12 @@ class PhotoTableModel(QAbstractTableModel):
         return 0 if parent.isValid() else len(self.HEADERS)
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = 0) -> Any:
+        if (
+            role == Qt.ItemDataRole.TextAlignmentRole
+            and orientation == Qt.Orientation.Horizontal
+            and section == self.CHECK
+        ):
+            return Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         if role != Qt.ItemDataRole.DisplayRole:
             return None
         return self.HEADERS[section] if orientation == Qt.Orientation.Horizontal else section + 1
@@ -419,11 +427,48 @@ class CategoryDelegate(QStyledItemDelegate):
             model.setData(index, editor.currentData(), Qt.ItemDataRole.EditRole)
 
 
+class CheckAllBox(QCheckBox):
+    def nextCheckState(self) -> None:
+        self.setCheckState(
+            Qt.CheckState.Unchecked
+            if self.checkState() == Qt.CheckState.Checked
+            else Qt.CheckState.Checked
+        )
+
+
+class PhotoTableHeader(QHeaderView):
+    def __init__(self, parent: QWidget) -> None:
+        super().__init__(Qt.Orientation.Horizontal, parent)
+        self.check_all = CheckAllBox(parent=self.viewport())
+        self.check_all.setTristate(True)
+        self.check_all.setAccessibleName("全部勾选 / 不勾选")
+        self.check_all.setToolTip("全部勾选 / 不勾选：包括搜索隐藏的照片；半勾选表示部分已勾选。")
+        self.sectionResized.connect(self._position_check)
+        self.sectionMoved.connect(self._position_check)
+        self.geometriesChanged.connect(self._position_check)
+
+    def _position_check(self) -> None:
+        size = self.check_all.sizeHint()
+        self.check_all.resize(size)
+        self.check_all.move(
+            self.sectionViewportPosition(PhotoTableModel.CHECK) + 6,
+            max(0, (self.height() - size.height()) // 2),
+        )
+        self.check_all.setVisible(not self.isSectionHidden(PhotoTableModel.CHECK))
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self._position_check()
+
+
 class PhotoTableView(QTableView):
     files_dropped = Signal(object)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.photo_header = PhotoTableHeader(self)
+        self.setHorizontalHeader(self.photo_header)
+        self.horizontalScrollBar().valueChanged.connect(self.photo_header._position_check)
         self.setAcceptDrops(True)
         self.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)

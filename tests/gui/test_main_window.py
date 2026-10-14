@@ -3,6 +3,7 @@
 from hashlib import sha256
 from pathlib import Path
 from threading import Event
+from types import SimpleNamespace
 
 import pytest
 from PIL import Image, ImageCms
@@ -13,6 +14,7 @@ from aim_tool.domain import ItemStatus
 from aim_tool.services.exiftool import ExifTool, ExifToolError
 from aim_tool.services.storage import ConfigStore, WatermarkSettings, WatermarkSettingsStore
 from aim_tool.services.watermark import WatermarkResources
+from aim_tool.ui import main_window
 from aim_tool.ui.main_window import MainWindow
 from aim_tool.workflow.steps import WatermarkStep
 
@@ -214,6 +216,20 @@ def test_batch_check_controls_use_selected_ids_after_sort_and_filter(
     try:
         assert not window.check_all.isEnabled()
         assert not window.check_selected_button.isEnabled()
+        assert not window.check_all.text()
+        assert window.check_all.accessibleName() == "全部勾选 / 不勾选"
+        assert window.check_all.parentWidget() is window.table.horizontalHeader().viewport()
+        centers = [
+            widget.geometry().center().y()
+            for widget in (window.check_selected_button, window.search, window.counter)
+        ]
+        assert max(centers) - min(centers) <= 1
+        assert window.counter.x() < window.check_selected_button.x()
+        assert (
+            window.check_selected_button.x()
+            < window.uncheck_selected_button.x()
+            < window.search.x()
+        )
         paths = tuple(tmp_path / name for name in ("late.jpg", "early.jpg", "middle.jpg"))
         for path in paths:
             _photo(path)
@@ -225,6 +241,16 @@ def test_batch_check_controls_use_selected_ids_after_sort_and_filter(
         assert window.proxy.sortColumn() == window.model.DATE
         assert window.proxy.index(0, window.model.FILE).data() == "early.jpg"
         assert window.check_all.checkState() == Qt.CheckState.Checked
+        header = window.table.horizontalHeader()
+        before = window.proxy.sortColumn()
+        qtbot.mouseClick(window.check_all, Qt.MouseButton.LeftButton)
+        assert not any(row.checked for row in window.model.rows)
+        assert window.proxy.sortColumn() == before
+        qtbot.mouseClick(window.check_all, Qt.MouseButton.LeftButton)
+        assert all(row.checked for row in window.model.rows)
+        window.table.setColumnWidth(window.model.CHECK, 95)
+        qtbot.wait(20)
+        assert window.check_all.x() == header.sectionViewportPosition(window.model.CHECK) + 6
         selection = window.table.selectionModel()
         for row in (0, 2):
             selection.select(
@@ -257,5 +283,26 @@ def test_batch_check_controls_use_selected_ids_after_sort_and_filter(
         assert not window.check_all.isEnabled()
         assert not window.check_selected_button.isEnabled()
         assert window.check_all.checkState() == Qt.CheckState.Unchecked
+    finally:
+        _close(qtbot, window)
+
+
+def test_output_defaults_to_frozen_executable_directory_not_working_or_unpack_directory(
+    qtbot: QtBot,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    synthetic_watermark_resources: WatermarkResources,
+) -> None:
+    executable = tmp_path / "中文 便携程序/AutoImageMarkTool.exe"
+    monkeypatch.setattr(
+        main_window,
+        "sys",
+        SimpleNamespace(frozen=True, executable=str(executable), _MEIPASS=str(tmp_path / "unpack")),
+    )
+    window = _window(qtbot, tmp_path, synthetic_watermark_resources)
+    try:
+        assert window.output_edit.text() == str(executable.parent)
+        window.output_edit.setText(str(tmp_path / "chosen"))
+        assert window.output_edit.text() == str(tmp_path / "chosen")
     finally:
         _close(qtbot, window)

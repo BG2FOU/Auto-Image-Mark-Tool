@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
@@ -79,13 +80,10 @@ QTabBar::tab:selected { background: white; color: #0e7490; }
 """
 
 
-class CheckAllBox(QCheckBox):
-    def nextCheckState(self) -> None:
-        self.setCheckState(
-            Qt.CheckState.Unchecked
-            if self.checkState() == Qt.CheckState.Checked
-            else Qt.CheckState.Checked
-        )
+def default_output_directory() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path.cwd()
 
 
 class MainWindow(QMainWindow):
@@ -139,7 +137,7 @@ class MainWindow(QMainWindow):
         self.table = PhotoTableView()
         self.table.setModel(self.proxy)
         self.table.sortByColumn(self.model.DATE, Qt.SortOrder.AscendingOrder)
-        self.table.setColumnWidth(self.model.CHECK, 48)
+        self.table.setColumnWidth(self.model.CHECK, 84)
         for column, width in (
             (self.model.FILE, 180),
             (self.model.CATEGORY, 75),
@@ -188,13 +186,7 @@ class MainWindow(QMainWindow):
         file_controls.addStretch()
         search_row = QHBoxLayout()
         search_row.addWidget(self.counter)
-        search_row.addStretch()
-        search_row.addWidget(self.search)
-        self.check_all = CheckAllBox("全部勾选 / 不勾选")
-        self.check_all.setTristate(True)
-        self.check_all.setToolTip(
-            "作用于全部已导入照片，包括搜索隐藏的照片；半勾选表示部分已勾选。"
-        )
+        self.check_all = self.table.photo_header.check_all
         self.check_all.checkStateChanged.connect(
             lambda state: self.model.set_checked(state == Qt.CheckState.Checked)
         )
@@ -203,11 +195,10 @@ class MainWindow(QMainWindow):
         self.check_selected_button.clicked.connect(lambda: self._check_selected(True))
         self.uncheck_selected_button.clicked.connect(lambda: self._check_selected(False))
         self.table.selectionModel().selectionChanged.connect(self._update_selection_controls)
-        check_controls = QHBoxLayout()
-        check_controls.addWidget(self.check_all)
-        check_controls.addStretch()
-        check_controls.addWidget(self.check_selected_button)
-        check_controls.addWidget(self.uncheck_selected_button)
+        search_row.addWidget(self.check_selected_button)
+        search_row.addWidget(self.uncheck_selected_button)
+        search_row.addStretch()
+        search_row.addWidget(self.search, 1)
         self._update_count()
         self._update_selection_controls()
         self.bulk_category = QComboBox()
@@ -237,7 +228,6 @@ class MainWindow(QMainWindow):
         photos_layout.addWidget(title)
         photos_layout.addLayout(file_controls)
         photos_layout.addLayout(search_row)
-        photos_layout.addLayout(check_controls)
         photos_layout.addWidget(self.fields_widget)
         photos_layout.addWidget(self.table, 1)
         table_hint = QLabel(
@@ -291,7 +281,7 @@ class MainWindow(QMainWindow):
         coordinates_layout.setContentsMargins(16, 12, 16, 12)
         coordinates_layout.addWidget(self.location_panel)
         coordinates_layout.addLayout(coordinate_controls)
-        self.output_edit = QLineEdit()
+        self.output_edit = QLineEdit(str(default_output_directory()))
         self.output_edit.setPlaceholderText("选择与原片目录不同的输出文件夹")
         self.output_button = QPushButton("浏览")
         self.output_button.clicked.connect(self._pick_output)

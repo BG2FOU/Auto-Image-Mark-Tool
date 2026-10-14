@@ -74,6 +74,7 @@ def main() -> int:
                     "capture_time_sort",
                     "startup_maximized",
                     "workflow_gutter_stability",
+                    "default_output_directory",
                 ],
                 "private_assets": "excluded",
                 "nef": "gps_only_with_integrity_checks",

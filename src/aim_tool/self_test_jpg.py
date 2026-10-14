@@ -238,6 +238,19 @@ def run_self_test(report: Path) -> int:
                 show_main_window(window)
                 application.processEvents()
                 _check(window.isVisible(), "JPG window did not open")
+                expected_output = (
+                    Path(sys.executable).resolve().parent if result["frozen"] else Path.cwd()
+                )
+                _check(
+                    window.output_edit.text() == str(expected_output),
+                    "Default output directory is not beside the executable",
+                )
+                _check(
+                    not window.check_all.text()
+                    and window.check_all.parentWidget()
+                    is window.table.horizontalHeader().viewport(),
+                    "Global check is not an icon-only header control",
+                )
                 _check(
                     window.isMaximized() and not window.isFullScreen(), "Startup is not maximized"
                 )
@@ -486,6 +499,7 @@ def run_self_test(report: Path) -> int:
                     "capture_time_sort",
                     "startup_maximized",
                     "workflow_gutter_stability",
+                    "default_output_directory",
                 ],
             )
     except Exception as error:  # noqa: BLE001 - windowless builds report all smoke failures
