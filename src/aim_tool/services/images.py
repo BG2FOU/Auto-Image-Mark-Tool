@@ -64,18 +64,24 @@ def prepare_jpeg(path: Path) -> PreparedJpeg:
                 raise ValueError("Watermark preview needs a JPEG input")
             if original.width * original.height > MAX_JPEG_PIXELS:
                 raise ValueError("JPEG exceeds the 60 megapixel watermark limit")
-            oriented = ImageOps.exif_transpose(original)
             embedded_icc = original.info.get("icc_profile")
             dpi = original.info.get("dpi")
+            ImageOps.exif_transpose(original, in_place=True)
+            oriented = original
     except Image.DecompressionBombError as error:
         raise ValueError("JPEG exceeds the 60 megapixel watermark limit") from error
     srgb_profile = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB"))
     if embedded_icc:
         try:
             source_profile = ImageCms.ImageCmsProfile(BytesIO(embedded_icc))
-            pixels = ImageCms.profileToProfile(
-                oriented, source_profile, srgb_profile, outputMode="RGB"
+            transformed = ImageCms.profileToProfile(
+                oriented,
+                source_profile,
+                srgb_profile,
+                outputMode="RGB",
+                inPlace=oriented.mode == "RGB",
             )
+            pixels = oriented if oriented.mode == "RGB" else transformed
         except (OSError, ValueError, ImageCms.PyCMSError) as error:
             raise ValueError("JPEG has an unreadable ICC profile") from error
         if pixels is None:
@@ -84,7 +90,7 @@ def prepare_jpeg(path: Path) -> PreparedJpeg:
     else:
         if oriented.mode not in {"RGB", "L"}:
             raise ValueError("JPEG without ICC has an ambiguous color mode")
-        pixels = oriented.convert("RGB")
+        pixels = oriented if oriented.mode == "RGB" else oriented.convert("RGB")
         warnings = ("No ICC profile; assumed sRGB for preview",)
     return PreparedJpeg(pixels, srgb_profile.tobytes(), dpi, warnings)
 

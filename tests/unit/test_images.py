@@ -3,11 +3,49 @@
 from __future__ import annotations
 
 from pathlib import Path
+from random import Random
 
 import pytest
-from PIL import Image, ImageCms
+from PIL import Image, ImageCms, ImageOps
 
 from aim_tool.services.images import prepare_jpeg, validate_jpeg
+
+
+@pytest.mark.parametrize("orientation", range(1, 9))
+@pytest.mark.parametrize("profile", [False, True])
+def test_preparation_matches_copy_based_reference_and_owns_pixels(
+    tmp_path: Path,
+    orientation: int,
+    profile: bool,
+) -> None:
+    source = tmp_path / "reference.jpg"
+    exif = Image.Exif()
+    exif[274] = orientation
+    icc = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+    Image.frombytes("RGB", (80, 40), Random(19).randbytes(80 * 40 * 3)).save(
+        source,
+        quality=95,
+        exif=exif,
+        icc_profile=icc if profile else None,
+    )
+    with Image.open(source) as original:
+        reference = ImageOps.exif_transpose(original)
+        if profile:
+            from io import BytesIO
+
+            reference = ImageCms.profileToProfile(
+                reference,
+                ImageCms.ImageCmsProfile(BytesIO(icc)),
+                ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")),
+                outputMode="RGB",
+            )
+        else:
+            reference = reference.convert("RGB")
+    assert reference is not None
+    prepared = prepare_jpeg(source)
+    source.unlink()  # No open JPEG handle or lazy decoder may be retained.
+    assert prepared.pixels.tobytes() == reference.tobytes()
+    assert prepared.pixels.getexif().get(274) in {None, 1}
 
 
 def test_orientation_is_applied_once_and_missing_profile_is_reported(tmp_path: Path) -> None:

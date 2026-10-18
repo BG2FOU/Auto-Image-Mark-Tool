@@ -447,7 +447,7 @@ def verify_signature(
     check_cancelled(cancelled)
     with Image.open(target) as image:
         spec, expected = signature_spec(image.size, config, signature)
-        pixels = np.asarray(image.convert("RGB"))
+        pixels = np.asarray(image if image.mode == "RGB" else image.convert("RGB"))
     recovered = extract(pixels, spec, config.key, cancelled=cancelled)
     if not np.array_equal(expected, recovered):
         raise ValueError(
