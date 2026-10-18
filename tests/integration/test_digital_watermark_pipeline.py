@@ -96,13 +96,25 @@ def test_all_six_choices_recover_after_metadata_and_keep_source(
     synthetic_watermark_resources: WatermarkResources,
     algorithm: str,
     level: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     job, registry, resources = setup(
         tmp_path, tool, synthetic_watermark_resources, algorithm, level
     )
     source = job.photos[0].source
     before = sha256(source.read_bytes()).digest()
+    verified = []
+    original_verify = frequency.verify_signature
+
+    def verify_after_metadata(path, *args, **kwargs):
+        values = tool.metadata(path, "-IFD0:Copyright")
+        assert values["IFD0:Copyright"] == "Public synthetic fixture"
+        verified.append(path)
+        return original_verify(path, *args, **kwargs)
+
+    monkeypatch.setattr(frequency, "verify_signature", verify_after_metadata)
     result = run_plan(build_plan(job, registry))[0]
+    assert len(verified) == 1
     assert result.status == ItemStatus.SUCCESS, result.error
     assert result.output is not None
     with Image.open(result.output) as image:
@@ -124,6 +136,77 @@ def test_all_six_choices_recover_after_metadata_and_keep_source(
     assert KEY not in str(values)
     assert sha256(source.read_bytes()).digest() == before
     assert not list(job.output_root.glob(".aim-*"))
+
+
+@pytest.mark.parametrize("damage", ["pixels", "jpeg", "cancel", "metadata"])
+def test_final_gate_rejects_post_metadata_damage_or_cancellation(
+    tmp_path: Path,
+    tool: ExifTool,
+    synthetic_watermark_resources: WatermarkResources,
+    monkeypatch: pytest.MonkeyPatch,
+    damage: str,
+) -> None:
+    from aim_tool.services import metadata
+
+    job, registry, _ = setup(tmp_path, tool, synthetic_watermark_resources, "dct", "medium")
+    plan = build_plan(job, registry)
+    stop = Event()
+    original = metadata.preserve_watermark_metadata
+
+    def damaged(adapter, authority, target):
+        original(adapter, authority, target)
+        if damage == "pixels":
+            with Image.open(target) as image:
+                size = image.size
+            Image.new("RGB", size).save(target, quality=95)
+        elif damage == "jpeg":
+            target.write_bytes(target.read_bytes()[:200])
+        elif damage == "cancel":
+            stop.set()
+        else:
+            raise ExifToolError("Injected final metadata failure")
+
+    monkeypatch.setattr(metadata, "preserve_watermark_metadata", damaged)
+    result = run_plan(plan, stop)[0]
+    assert result.status == (ItemStatus.CANCELLED if damage == "cancel" else ItemStatus.FAILED)
+    assert not list(job.output_root.glob("*_marked.jpg"))
+    assert not list(job.output_root.glob(".aim-*"))
+
+
+def test_independent_export_keeps_its_own_complete_verification(
+    tmp_path: Path,
+    tool: ExifTool,
+    synthetic_watermark_resources: WatermarkResources,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from aim_tool.services.images import export_watermark_preview
+
+    job, registry, resources = setup(tmp_path, tool, synthetic_watermark_resources, "dct", "medium")
+    step = registry.get("watermark")
+    assert isinstance(step, WatermarkStep)
+    config, _ = step.configuration(job.photos[0], job.workflow.steps[1])
+    calls = 0
+    original = frequency.verify_signature
+
+    def verify(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(frequency, "verify_signature", verify)
+    target = tmp_path / "independent/result.jpg"
+    export_watermark_preview(job.photos[0].source, target, config, resources)
+    assert calls == 1 and target.is_file()
+
+    def fail(*args, **kwargs):
+        raise ValueError("Injected independent verification failure")
+
+    monkeypatch.setattr(frequency, "verify_signature", fail)
+    with pytest.raises(ValueError, match="independent verification failure"):
+        export_watermark_preview(
+            job.photos[0].source, target.with_name("failed.jpg"), config, resources
+        )
+    assert not target.with_name("failed.jpg").exists()
 
 
 def test_capacity_failure_happens_in_preflight_before_any_output(

@@ -117,6 +117,42 @@ def _digest(path: Path) -> bytes:
     return digest.digest()
 
 
+def _encode_watermark_jpeg(
+    source: Path,
+    staged: Path,
+    config: WatermarkConfig,
+    resources: WatermarkResources,
+    *,
+    quality: int = 95,
+    subsampling: int = 0,
+    cancelled: Event | None = None,
+) -> tuple[str, ...]:
+    """Encode a new transaction-owned artifact. Caller must verify it before committing."""
+    if type(quality) is not int or not 1 <= quality <= 100:
+        raise ValueError("JPEG quality must be an integer from 1 to 100")
+    if type(subsampling) is not int or subsampling not in {0, 1, 2}:
+        raise ValueError("JPEG subsampling must be 0, 1 or 2")
+    if cancelled is not None and cancelled.is_set():
+        raise InterruptedError("水印处理已取消")
+    prepared = watermark_jpeg_pixels(source, config, resources, cancelled=cancelled)
+    staged.parent.mkdir(parents=True, exist_ok=True)
+    options: dict[str, object] = {
+        "quality": quality,
+        "subsampling": subsampling,
+        "icc_profile": prepared.srgb_icc,
+    }
+    orientation = Image.Exif()
+    orientation[274] = 1
+    options["exif"] = orientation.tobytes()
+    if prepared.dpi is not None:
+        options["dpi"] = prepared.dpi
+    with staged.open("xb") as output:
+        prepared.pixels.save(output, format="JPEG", **options)
+    if cancelled is not None and cancelled.is_set():
+        raise InterruptedError("水印处理已取消")
+    return prepared.warnings
+
+
 def export_watermark_preview(
     source: Path,
     target: Path,
@@ -147,21 +183,18 @@ def export_watermark_preview(
     original_digest = _digest(source)
     if cancelled is not None and cancelled.is_set():
         raise InterruptedError("水印处理已取消")
-    prepared = watermark_jpeg_pixels(source, config, resources, cancelled=cancelled)
     target.parent.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory(prefix=".aim-mark-", dir=target.parent) as name:
         staged = Path(name) / target.name
-        options: dict[str, object] = {
-            "quality": quality,
-            "subsampling": subsampling,
-            "icc_profile": prepared.srgb_icc,
-        }
-        orientation = Image.Exif()
-        orientation[274] = 1
-        options["exif"] = orientation.tobytes()
-        if prepared.dpi is not None:
-            options["dpi"] = prepared.dpi
-        prepared.pixels.save(staged, format="JPEG", **options)
+        warnings = _encode_watermark_jpeg(
+            source,
+            staged,
+            config,
+            resources,
+            quality=quality,
+            subsampling=subsampling,
+            cancelled=cancelled,
+        )
         if config.digital is not None:
             from aim_tool.services.frequency_watermark import verify_signature
 
@@ -171,4 +204,4 @@ def export_watermark_preview(
         if _digest(source) != original_digest:
             raise OSError("Source changed during watermark preview")
         commit_no_overwrite(staged, target)
-    return prepared.warnings
+    return warnings

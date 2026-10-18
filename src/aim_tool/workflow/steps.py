@@ -389,7 +389,7 @@ class WatermarkStep:
         self._prepared[item.id] = prepared
 
     def execute(self, artifact: Artifact, spec: StepSpec, context: StepContext) -> Artifact:
-        from aim_tool.services.images import export_watermark_preview
+        from aim_tool.services.images import _encode_watermark_jpeg
         from aim_tool.services.metadata import preserve_watermark_metadata
 
         if context.photo is None:
@@ -413,7 +413,7 @@ class WatermarkStep:
             original_hash = _sha256(artifact.source)
         authority_hash = _sha256(artifact.path)
         target = context.scratch / "watermark" / "rendered.jpg"
-        warnings = export_watermark_preview(
+        warnings = _encode_watermark_jpeg(
             artifact.path,
             target,
             prepared.config,
