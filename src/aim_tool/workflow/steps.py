@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import shutil
 from collections import OrderedDict
 from collections.abc import Mapping
@@ -17,7 +18,7 @@ from aim_tool.domain import Artifact, ImageKind, PhotoItem, StepSpec
 from aim_tool.domain.dates import resolve_capture_date
 from aim_tool.services.exiftool import ExifTool, validate_coordinates
 from aim_tool.services.file_state import FileState, file_state
-from aim_tool.services.nef_gps import fingerprint_nef
+from aim_tool.services.nef_gps import NefFingerprint, fingerprint_nef
 from aim_tool.services.output import commit_no_overwrite
 from aim_tool.workflow.contracts import ParameterType, StepContext
 
@@ -31,6 +32,16 @@ def _sha256(path: Path) -> str:
         for block in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+@dataclass(frozen=True)
+class _PreparedNef:
+    photo: PhotoItem
+    state: FileState
+    fingerprint: NefFingerprint | None
+
+
+_NEF_BASELINE_BYTES = 16 * 1024**2
 
 
 class LocationStep:
@@ -57,18 +68,27 @@ class LocationStep:
         self._preflight_metadata = preflight_metadata
         self._preflight_states = preflight_states
         self._cancelled = cancelled
+        self._nef_prepared: dict[UUID, _PreparedNef] = {}
+        self._nef_cached: OrderedDict[UUID, int] = OrderedDict()
 
     def output_kind(self, input_kind: ImageKind) -> ImageKind:
         return input_kind
 
     def validate(self, item: PhotoItem, spec: StepSpec) -> None:
+        self._nef_prepared.pop(item.id, None)
+        self._nef_cached.pop(item.id, None)
+        prepared_nef = None
         if item.coordinates is None:
             raise ValueError(f"Missing WGS84 coordinates: {item.source.name}")
         validate_coordinates(*item.coordinates)
         if item.source.suffix.lower() == ".nef":
             if not self.allow_nef_after_viewer_check:
                 raise ValueError("NEF GPS output needs independent Nikon viewer approval")
-            fingerprint_nef(self.tool, item.source)
+            state = file_state(item.source, self._cancelled)
+            fingerprint = fingerprint_nef(self.tool, item.source)
+            if file_state(item.source, self._cancelled) != state:
+                raise OSError("NEF source changed during preflight")
+            prepared_nef = _PreparedNef(item, state, fingerprint)
         metadata = None
         if self._preflight_metadata is not None and item.source.suffix.lower() != ".nef":
             if self._preflight_states is not None:
@@ -84,6 +104,24 @@ class LocationStep:
         )
         if auxiliary and not self.clear_auxiliary_gps:
             raise ValueError("Existing auxiliary GPS tags require explicit clearance")
+        if prepared_nef is not None:
+            self._nef_prepared[item.id] = prepared_nef
+            assert prepared_nef.fingerprint is not None
+            footprint = len(
+                json.dumps(
+                    {
+                        "metadata": prepared_nef.fingerprint.metadata,
+                        "previews": prepared_nef.fingerprint.previews,
+                        "diagnostics": sorted(prepared_nef.fingerprint.diagnostics),
+                    }
+                ).encode("utf-8")
+            )
+            self._nef_cached[item.id] = footprint
+            while (
+                len(self._nef_cached) > 256 or sum(self._nef_cached.values()) > _NEF_BASELINE_BYTES
+            ):
+                evicted, _ = self._nef_cached.popitem(last=False)
+                self._nef_prepared[evicted] = replace(self._nef_prepared[evicted], fingerprint=None)
 
     def execute(self, artifact: Artifact, spec: StepSpec, context: StepContext) -> Artifact:
         if artifact.path != artifact.source:
@@ -91,10 +129,26 @@ class LocationStep:
         if context.coordinates is None:
             raise ValueError(f"Missing WGS84 coordinates: {artifact.source.name}")
         latitude, longitude = context.coordinates
-        before = _sha256(artifact.source)
-        raw_before = (
-            fingerprint_nef(self.tool, artifact.source) if artifact.kind == ImageKind.NEF else None
+        prepared = (
+            self._nef_prepared.get(context.photo.id)
+            if artifact.kind == ImageKind.NEF and context.photo is not None
+            else None
         )
+        raw_before: NefFingerprint | None
+        if prepared is not None and prepared.photo == context.photo:
+            state = file_state(artifact.source, context.cancelled)
+            if state != prepared.state:
+                raise OSError("NEF source changed after preflight")
+            before = state.digest
+            raw_before = prepared.fingerprint or fingerprint_nef(self.tool, artifact.source)
+        else:
+            # Independent/legacy callers retain their own complete baseline verification.
+            before = _sha256(artifact.source)
+            raw_before = (
+                fingerprint_nef(self.tool, artifact.source)
+                if artifact.kind == ImageKind.NEF
+                else None
+            )
         staged = context.scratch / artifact.source.name
         with artifact.source.open("rb") as original, staged.open("xb") as copy:
             shutil.copyfileobj(original, copy, length=1024 * 1024)

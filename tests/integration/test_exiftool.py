@@ -170,14 +170,30 @@ def test_nikon_nef_diagnostic_copy_preserves_raw_and_preview_pixels(
 
 @pytest.mark.raw
 @pytest.mark.parametrize("sample", ("DSC_0168.NEF", "DSC_0038.NEF"))
+@pytest.mark.parametrize("cache_baseline", [True, False])
 def test_nikon_nef_transactional_batch_preserves_format_and_payloads(
-    tmp_path: Path, tool: ExifTool, pytestconfig: pytest.Config, sample: str
+    tmp_path: Path,
+    tool: ExifTool,
+    pytestconfig: pytest.Config,
+    sample: str,
+    monkeypatch: pytest.MonkeyPatch,
+    cache_baseline: bool,
 ) -> None:
     from aim_tool.services.nef_gps import fingerprint_nef
+    from aim_tool.workflow import steps
 
     source = _sample(ROOT / "data" / sample, pytestconfig)
     source_hash = sha256(source.read_bytes()).digest()
     before = fingerprint_nef(tool, source)
+    fingerprint_calls = []
+
+    def counted(adapter, path):
+        fingerprint_calls.append(path)
+        return fingerprint_nef(adapter, path)
+
+    monkeypatch.setattr(steps, "fingerprint_nef", counted)
+    if not cache_baseline:
+        monkeypatch.setattr(steps, "_NEF_BASELINE_BYTES", 0)
     item = PhotoItem(source, source.parent, coordinates=(-24.123456, -118.654321), altitude=-12.5)
     output = tmp_path / "output"
     (result,) = run_plan(
@@ -187,6 +203,7 @@ def test_nikon_nef_transactional_batch_preserves_format_and_payloads(
         )
     )
     assert result.output == output / source.name, result.error
+    assert len(fingerprint_calls) == (2 if cache_baseline else 3)
     assert fingerprint_nef(tool, result.output).preserved_from(before)
     gps = tool.read_gps(result.output)
     assert gps is not None
@@ -206,6 +223,32 @@ def test_nikon_nef_transactional_batch_preserves_format_and_payloads(
     assert sha256(source.read_bytes()).digest() == source_hash
     assert not list(output.glob("*.jpg"))
     assert not list(output.glob(".aim-*"))
+
+
+@pytest.mark.raw
+def test_nef_source_replacement_with_restored_mtime_rejects_cached_baseline(
+    tmp_path: Path,
+    tool: ExifTool,
+    pytestconfig: pytest.Config,
+) -> None:
+    import os
+
+    source = tmp_path / "copy.NEF"
+    shutil.copyfile(_sample(ROOT / "data/DSC_0168.NEF", pytestconfig), source)
+    item = PhotoItem(source, tmp_path, coordinates=(24.2, 118.4))
+    plan = build_plan(
+        BatchJob((item,), preset("location_only"), tmp_path / "out"),
+        _registry(tool, clear_auxiliary=True, allow_nef=True),
+    )
+    stat = source.stat()
+    with source.open("r+b") as stream:
+        stream.seek(-1, 2)
+        byte = stream.read(1)
+        stream.seek(-1, 2)
+        stream.write(bytes([byte[0] ^ 1]))
+    os.utime(source, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    result = run_plan(plan)[0]
+    assert result.output is None and "changed after preflight" in str(result.error)
 
 
 @pytest.mark.raw
