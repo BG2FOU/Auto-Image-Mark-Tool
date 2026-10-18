@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import shutil
+from collections import OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
+from threading import Event
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID
@@ -14,6 +16,7 @@ from uuid import UUID
 from aim_tool.domain import Artifact, ImageKind, PhotoItem, StepSpec
 from aim_tool.domain.dates import resolve_capture_date
 from aim_tool.services.exiftool import ExifTool, validate_coordinates
+from aim_tool.services.file_state import FileState, file_state
 from aim_tool.services.nef_gps import fingerprint_nef
 from aim_tool.services.output import commit_no_overwrite
 from aim_tool.workflow.contracts import ParameterType, StepContext
@@ -44,10 +47,16 @@ class LocationStep:
         *,
         allow_nef_after_viewer_check: bool = False,
         clear_auxiliary_gps: bool = False,
+        preflight_metadata: dict[Path, dict[str, Any]] | None = None,
+        preflight_states: dict[Path, FileState] | None = None,
+        cancelled: Event | None = None,
     ) -> None:
         self.tool = tool
         self.allow_nef_after_viewer_check = allow_nef_after_viewer_check
         self.clear_auxiliary_gps = clear_auxiliary_gps
+        self._preflight_metadata = preflight_metadata
+        self._preflight_states = preflight_states
+        self._cancelled = cancelled
 
     def output_kind(self, input_kind: ImageKind) -> ImageKind:
         return input_kind
@@ -60,7 +69,20 @@ class LocationStep:
             if not self.allow_nef_after_viewer_check:
                 raise ValueError("NEF GPS output needs independent Nikon viewer approval")
             fingerprint_nef(self.tool, item.source)
-        if self.tool.has_auxiliary_gps(item.source) and not self.clear_auxiliary_gps:
+        metadata = None
+        if self._preflight_metadata is not None and item.source.suffix.lower() != ".nef":
+            if self._preflight_states is not None:
+                self._preflight_states[item.source] = file_state(item.source, self._cancelled)
+            metadata = self.tool.metadata(
+                item.source, "-ExifIFD:DateTimeOriginal", "-ExifIFD:CreateDate", "-gps:all"
+            )
+            self._preflight_metadata[item.source] = metadata
+        auxiliary = (
+            self.tool.has_auxiliary_gps(item.source)
+            if metadata is None
+            else self.tool.has_auxiliary_gps(item.source, metadata=metadata)
+        )
+        if auxiliary and not self.clear_auxiliary_gps:
             raise ValueError("Existing auxiliary GPS tags require explicit clearance")
 
     def execute(self, artifact: Artifact, spec: StepSpec, context: StepContext) -> Artifact:
@@ -144,6 +166,55 @@ class _PreparedWatermark:
     config: WatermarkConfig
     date_source: str
     asset_hashes: tuple[tuple[Path, str], ...]
+    source_state: FileState | None = None
+
+
+class WatermarkPreflightCache:
+    """Window-owned, bounded validated summaries; never retain decoded pixel buffers."""
+
+    def __init__(self, limit: int = 256) -> None:
+        self.limit = limit
+        self._entries: OrderedDict[
+            UUID, tuple[FileState, _PreparedWatermark, WatermarkResources]
+        ] = OrderedDict()
+
+    def find(
+        self,
+        photo: PhotoItem,
+        spec: StepSpec,
+        resources: WatermarkResources,
+        state: FileState,
+    ) -> _PreparedWatermark | None:
+        entry = self._entries.pop(photo.id, None)
+        if entry is None:
+            return None
+        previous, prepared, assets = entry
+        if (
+            previous != state
+            or prepared.photo != photo
+            or prepared.spec != spec
+            or assets != resources
+            or any(_sha256(path) != digest for path, digest in prepared.asset_hashes)
+        ):
+            return None
+        self._entries[photo.id] = entry
+        return prepared
+
+    def remember(
+        self,
+        state: FileState,
+        prepared: _PreparedWatermark,
+        resources: WatermarkResources,
+    ) -> None:
+        if self.limit <= 0:
+            return
+        self._entries[prepared.photo.id] = state, prepared, resources
+        self._entries.move_to_end(prepared.photo.id)
+        while len(self._entries) > self.limit:
+            self._entries.popitem(last=False)
+
+    def clear(self) -> None:
+        self._entries.clear()
 
 
 class WatermarkStep:
@@ -176,10 +247,23 @@ class WatermarkStep:
     )
     required_parameters: frozenset[str] = frozenset()
 
-    def __init__(self, tool: ExifTool, resources: WatermarkResources) -> None:
+    def __init__(
+        self,
+        tool: ExifTool,
+        resources: WatermarkResources,
+        *,
+        preflight_cache: WatermarkPreflightCache | None = None,
+        preflight_metadata: dict[Path, dict[str, Any]] | None = None,
+        preflight_states: dict[Path, FileState] | None = None,
+        cancelled: Event | None = None,
+    ) -> None:
         self.tool = tool
         self.resources = resources
         self._prepared: dict[UUID, _PreparedWatermark] = {}
+        self._preflight_cache = preflight_cache
+        self._preflight_metadata = preflight_metadata
+        self._preflight_states = preflight_states
+        self._cancelled = cancelled
 
     def output_kind(self, input_kind: ImageKind) -> ImageKind:
         return ImageKind.JPEG
@@ -248,9 +332,31 @@ class WatermarkStep:
         from aim_tool.services.images import validate_jpeg
         from aim_tool.services.watermark import render_watermark_region
 
-        metadata = self.tool.metadata(
-            item.source, "-ExifIFD:DateTimeOriginal", "-ExifIFD:CreateDate", "-GPS:all"
+        state = (
+            self._preflight_states.pop(item.source, None)
+            if self._preflight_states is not None
+            else None
         )
+        if state is None and self._preflight_cache:
+            state = file_state(item.source, self._cancelled)
+        if self._preflight_cache is not None and state is not None:
+            cached = self._preflight_cache.find(item, spec, self.resources, state)
+            if cached is not None:
+                if file_state(item.source, self._cancelled) != state:
+                    raise OSError("Source changed during preflight")
+                self._prepared[item.id] = cached
+                if self._preflight_metadata is not None:
+                    self._preflight_metadata.pop(item.source, None)
+                return
+        metadata = (
+            self._preflight_metadata.pop(item.source, None)
+            if self._preflight_metadata is not None
+            else None
+        )
+        if metadata is None:
+            metadata = self.tool.metadata(
+                item.source, "-ExifIFD:DateTimeOriginal", "-ExifIFD:CreateDate", "-GPS:all"
+            )
         config, date_source = self._config(item, spec, metadata=metadata)
         self.tool.gps_from_metadata(metadata)
         quality = spec.params.get("jpeg_quality", 95)
@@ -273,7 +379,14 @@ class WatermarkStep:
             signature_spec(size, config.digital, self.resources.signature)
         if any(_sha256(path) != digest for path, digest in fingerprints):
             raise ValueError("Watermark asset changed during preflight")
-        self._prepared[item.id] = _PreparedWatermark(item, spec, config, date_source, fingerprints)
+        prepared = _PreparedWatermark(item, spec, config, date_source, fingerprints, state)
+        if self._preflight_cache is not None and state is not None:
+            if self._cancelled is not None and self._cancelled.is_set():
+                raise InterruptedError("检查已取消")
+            if file_state(item.source, self._cancelled) != state:
+                raise OSError("Source changed during preflight")
+            self._preflight_cache.remember(state, prepared, self.resources)
+        self._prepared[item.id] = prepared
 
     def execute(self, artifact: Artifact, spec: StepSpec, context: StepContext) -> Artifact:
         from aim_tool.services.images import export_watermark_preview
@@ -291,7 +404,13 @@ class WatermarkStep:
         for path, digest in prepared.asset_hashes:
             if _sha256(path) != digest:
                 raise ValueError("Watermark asset changed after preflight")
-        original_hash = _sha256(artifact.source)
+        if prepared.source_state is not None:
+            current = file_state(artifact.source, context.cancelled)
+            if current != prepared.source_state:
+                raise OSError("Source changed after preflight")
+            original_hash = current.digest
+        else:
+            original_hash = _sha256(artifact.source)
         authority_hash = _sha256(artifact.path)
         target = context.scratch / "watermark" / "rendered.jpg"
         warnings = export_watermark_preview(

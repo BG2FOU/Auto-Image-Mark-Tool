@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+from dataclasses import replace
 from hashlib import sha256
 from pathlib import Path
 from threading import Event
@@ -11,11 +13,18 @@ from PIL import Image, ImageCms
 
 from aim_tool.domain import BatchJob, ItemStatus, PhotoItem
 from aim_tool.services.exiftool import ExifTool, ExifToolError
+from aim_tool.services.file_state import FileState
 from aim_tool.services.resources import local_project_resources
 from aim_tool.services.watermark import WatermarkResources
 from aim_tool.workflow.engine import build_plan, run_plan
 from aim_tool.workflow.registry import StepRegistry, preset
-from aim_tool.workflow.steps import ExportStep, LocationStep, RawDevelopStep, WatermarkStep
+from aim_tool.workflow.steps import (
+    ExportStep,
+    LocationStep,
+    RawDevelopStep,
+    WatermarkPreflightCache,
+    WatermarkStep,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -99,6 +108,155 @@ def test_jpg_pipeline_keeps_authoritative_gps_orientation_date_and_source(
         assert image.getpixel((image.width - 8, image.height - 8)) != image.getpixel((0, 0))
     assert sha256(photo.source.read_bytes()).digest() == before
     assert not list((tmp_path / "output").glob(".aim-*"))
+
+
+def _cached_registry(
+    tool: ExifTool, resources: WatermarkResources, cache: WatermarkPreflightCache
+) -> StepRegistry:
+    metadata: dict[Path, dict[str, object]] = {}
+    states: dict[Path, FileState] = {}
+    registry = StepRegistry()
+    registry.register(
+        LocationStep(
+            tool,
+            clear_auxiliary_gps=True,
+            preflight_metadata=metadata,
+            preflight_states=states,
+        )
+    )
+    registry.register(
+        WatermarkStep(
+            tool,
+            resources,
+            preflight_cache=cache,
+            preflight_metadata=metadata,
+            preflight_states=states,
+        )
+    )
+    registry.register(RawDevelopStep())
+    registry.register(ExportStep())
+    return registry
+
+
+@pytest.mark.parametrize("change", ["none", "photo", "spec", "source", "asset"])
+def test_preflight_cache_binds_content_config_and_assets(
+    tmp_path: Path,
+    tool: ExifTool,
+    resources: WatermarkResources,
+    monkeypatch: pytest.MonkeyPatch,
+    change: str,
+) -> None:
+    from aim_tool.services import images
+
+    photo = _photo(tmp_path, "a.jpg", tool)
+    cache = WatermarkPreflightCache()
+    workflow = preset("location_and_watermark")
+    calls = 0
+    original = images.validate_jpeg
+
+    def counted(path: Path) -> tuple[int, int]:
+        nonlocal calls
+        calls += 1
+        return original(path)
+
+    monkeypatch.setattr(images, "validate_jpeg", counted)
+    build_plan(
+        BatchJob((photo,), workflow, tmp_path / "out"), _cached_registry(tool, resources, cache)
+    )
+    if change == "photo":
+        photo = replace(photo, edits={"category": "aviation", "subject": "B-9999"})
+    elif change == "spec":
+        workflow = replace(
+            workflow,
+            steps=tuple(
+                replace(step, params={"margin_x": 15.0})
+                if step.component_id == "watermark"
+                else step
+                for step in workflow.steps
+            ),
+        )
+    elif change == "source":
+        stat = photo.source.stat()
+        tool._run_for_path(photo.source, "-overwrite_original", "-IFD0:Make=EDIT")
+        assert photo.source.stat().st_size == stat.st_size
+        os.utime(photo.source, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    elif change == "asset":
+        stat = resources.signature.stat()
+        Image.new("RGBA", (30, 18), (10, 20, 30, 255)).save(resources.signature)
+        os.utime(resources.signature, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    plan = build_plan(
+        BatchJob((photo,), workflow, tmp_path / "out"), _cached_registry(tool, resources, cache)
+    )
+    assert calls == (1 if change == "none" else 2)
+    assert run_plan(plan)[0].status == ItemStatus.SUCCESS
+
+
+def test_preflight_cache_still_checks_targets_and_corrupt_sources(
+    tmp_path: Path,
+    tool: ExifTool,
+    resources: WatermarkResources,
+) -> None:
+    photo = _photo(tmp_path, "a.jpg", tool)
+    cache = WatermarkPreflightCache()
+    job = BatchJob((photo,), preset("watermark_only"), tmp_path / "out")
+    plan = build_plan(job, _cached_registry(tool, resources, cache))
+    plan.items[0].target.parent.mkdir()
+    plan.items[0].target.write_bytes(b"occupied")
+    with pytest.raises(ValueError, match="already exists"):
+        build_plan(job, _cached_registry(tool, resources, cache))
+    assert plan.items[0].target.read_bytes() == b"occupied"
+    plan.items[0].target.unlink()
+    stat = photo.source.stat()
+    photo.source.write_bytes(b"x" * stat.st_size)
+    os.utime(photo.source, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    with pytest.raises((OSError, ValueError)):
+        build_plan(job, _cached_registry(tool, resources, cache))
+    assert not list((tmp_path / "out").iterdir())
+
+
+def test_joint_preflight_rejects_source_changed_during_metadata_read(
+    tmp_path: Path,
+    tool: ExifTool,
+    resources: WatermarkResources,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    photo = _photo(tmp_path, "a.jpg", tool)
+    original = tool.metadata
+    changed = False
+
+    def changing(path: Path, *tags: str):
+        nonlocal changed
+        result = original(path, *tags)
+        if not changed:
+            changed = True
+            tool._run_for_path(path, "-overwrite_original", "-IFD0:Make=EDIT")
+        return result
+
+    monkeypatch.setattr(tool, "metadata", changing)
+    with pytest.raises(OSError, match="changed during preflight"):
+        build_plan(
+            BatchJob((photo,), preset("location_and_watermark"), tmp_path / "out"),
+            _cached_registry(tool, resources, WatermarkPreflightCache()),
+        )
+
+
+def test_cached_preflight_rejects_same_size_mtime_source_replacement_before_execution(
+    tmp_path: Path,
+    tool: ExifTool,
+    resources: WatermarkResources,
+) -> None:
+    photo = _photo(tmp_path, "a.jpg", tool)
+    plan = build_plan(
+        BatchJob((photo,), preset("watermark_only"), tmp_path / "out"),
+        _cached_registry(tool, resources, WatermarkPreflightCache()),
+    )
+    stat = photo.source.stat()
+    tool._run_for_path(photo.source, "-overwrite_original", "-IFD0:Make=EDIT")
+    assert photo.source.stat().st_size == stat.st_size
+    os.utime(photo.source, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    result = run_plan(plan)[0]
+    assert result.status == ItemStatus.FAILED and "changed after preflight" in str(result.error)
+    assert not plan.items[0].target.exists()
 
 
 def test_missing_profile_warning_is_in_result(

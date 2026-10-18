@@ -48,6 +48,7 @@ from aim_tool.ui.settings_dialog import SettingsDialog
 from aim_tool.ui.workers import BatchWorker, MetadataWorker, PreflightWorker
 from aim_tool.ui.workflow_panel import WorkflowPanel
 from aim_tool.workflow.engine import ExecutionPlan
+from aim_tool.workflow.steps import WatermarkPreflightCache
 
 STYLE = """
 QMainWindow, QDialog { background: #edf2f7; }
@@ -128,6 +129,7 @@ class MainWindow(QMainWindow):
         self._completed_ids: set[str] = set()
         self.results: tuple[ItemResult, ...] = ()
         self.last_plan: ExecutionPlan | None = None
+        self._preflight_cache = WatermarkPreflightCache()
 
         self.model = PhotoTableModel(self)
         self.proxy = PhotoSortProxyModel(self)
@@ -764,6 +766,7 @@ class MainWindow(QMainWindow):
             self,
             clear_auxiliary_gps=self.clear_auxiliary.isChecked(),
             allow_nef_after_viewer_check=self.allow_nef_after_viewer_check,
+            preflight_cache=self._preflight_cache,
         )
         self._preflight_worker = worker
         worker.item_error.connect(self.model.preflight_error)
@@ -926,4 +929,5 @@ class MainWindow(QMainWindow):
         if self.has_active_workers:
             event.ignore()
         else:
+            self._preflight_cache.clear()
             super().closeEvent(event)

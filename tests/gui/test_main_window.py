@@ -60,6 +60,46 @@ def _close(qtbot: QtBot, window: MainWindow) -> None:
     qtbot.waitUntil(lambda: not window.isVisible(), timeout=2000)
 
 
+def test_check_then_start_reuses_only_validated_pixels(
+    qtbot: QtBot,
+    tmp_path: Path,
+    synthetic_watermark_resources: WatermarkResources,
+    tool: ExifTool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from aim_tool.services import images
+
+    source = tmp_path / "input/a.jpg"
+    _photo(source)
+    calls = 0
+    original = images.validate_jpeg
+
+    def counted(path: Path) -> tuple[int, int]:
+        nonlocal calls
+        calls += 1
+        return original(path)
+
+    monkeypatch.setattr(images, "validate_jpeg", counted)
+    window = _window(qtbot, tmp_path, synthetic_watermark_resources)
+    try:
+        window.add_photos((source,))
+        window.workflow.presets.setCurrentIndex(2)
+        window.bulk_subject.setText("B-1356")
+        window.apply_fields_button.click()
+        window.apply_coordinates(24.2, 118.4)
+        window.output_edit.setText(str(tmp_path / "out"))
+        qtbot.waitUntil(lambda: not window.has_active_workers, timeout=20000)
+        window.check_button.click()
+        qtbot.waitUntil(lambda: not window._busy, timeout=20000)
+        assert window.last_plan is not None and calls == 1
+        window.start_button.click()
+        qtbot.waitUntil(lambda: not window._busy, timeout=20000)
+        assert calls == 1
+        assert window.results[0].status == ItemStatus.SUCCESS
+    finally:
+        _close(qtbot, window)
+
+
 def test_gui_combined_export_preserves_current_gps_and_source(
     qtbot: QtBot, tmp_path: Path, synthetic_watermark_resources: WatermarkResources, tool: ExifTool
 ) -> None:

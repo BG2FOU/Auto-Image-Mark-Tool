@@ -529,8 +529,8 @@ class ExifTool:
         validate_altitude(signed_altitude)
         return GpsCoordinates(signed_latitude, signed_longitude, signed_altitude)
 
-    def has_auxiliary_gps(self, path: Path) -> bool:
-        values = self.metadata(path, "-gps:all")
+    def has_auxiliary_gps(self, path: Path, *, metadata: dict[str, Any] | None = None) -> bool:
+        values = self.metadata(path, "-gps:all") if metadata is None else metadata
         ordinary = {
             "SourceFile",
             "GPS:GPSVersionID",
@@ -541,7 +541,11 @@ class ExifTool:
             "GPS:GPSLongitude",
             "GPS:GPSLongitudeRef",
         }
-        return any(key not in ordinary for key in values)
+        return any(
+            key not in ordinary
+            for key in values
+            if key not in {"ExifIFD:DateTimeOriginal", "ExifIFD:CreateDate"}
+        )
 
     def write_gps(
         self, path: Path, latitude: float, longitude: float, altitude: float = 0.0

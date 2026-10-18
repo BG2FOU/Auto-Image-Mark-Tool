@@ -14,10 +14,11 @@ from PySide6.QtWidgets import QWidget
 
 from aim_tool.domain import BatchJob, PhotoItem, StepSpec
 from aim_tool.services.exiftool import ExifTool
+from aim_tool.services.file_state import FileState
 from aim_tool.services.storage import WatermarkSettings
 from aim_tool.workflow.engine import ExecutionPlan, build_plan, run_plan
 from aim_tool.workflow.registry import StepRegistry
-from aim_tool.workflow.steps import ExportStep, LocationStep, WatermarkStep
+from aim_tool.workflow.steps import ExportStep, LocationStep, WatermarkPreflightCache, WatermarkStep
 
 
 class BatchWorker(QThread):
@@ -94,10 +95,12 @@ class PreflightWorker(QThread):
         *,
         clear_auxiliary_gps: bool = False,
         allow_nef_after_viewer_check: bool = False,
+        preflight_cache: WatermarkPreflightCache | None = None,
     ) -> None:
         super().__init__(parent)
         self.clear_auxiliary_gps = clear_auxiliary_gps
         self.allow_nef_after_viewer_check = allow_nef_after_viewer_check
+        self.preflight_cache = preflight_cache
         self.job = job
         self.settings = settings
         self.cancelled = Event()
@@ -105,20 +108,43 @@ class PreflightWorker(QThread):
     def run(self) -> None:
         try:
             with ExifTool(timeout=30, persistent=True) as tool:
+                metadata: dict[Path, dict[str, object]] = {}
+                states: dict[Path, FileState] = {}
                 registry = StepRegistry()
                 registry.register(
                     LocationStep(
                         tool,
                         clear_auxiliary_gps=self.clear_auxiliary_gps,
                         allow_nef_after_viewer_check=self.allow_nef_after_viewer_check,
+                        preflight_states=states if self.preflight_cache is not None else None,
+                        cancelled=self.cancelled,
+                        preflight_metadata=metadata
+                        if any(
+                            step.enabled and step.component_id == "watermark"
+                            for step in self.job.workflow.steps
+                        )
+                        else None,
                     )
                 )
-                registry.register(WatermarkStep(tool, self.settings.resources))
+                registry.register(
+                    WatermarkStep(
+                        tool,
+                        self.settings.resources,
+                        preflight_cache=self.preflight_cache,
+                        preflight_metadata=metadata,
+                        preflight_states=states,
+                        cancelled=self.cancelled,
+                    )
+                )
                 registry.register(ExportStep())
                 plan = build_plan(self.job, registry, cancelled=self.cancelled)
+            if self.cancelled.is_set() and self.preflight_cache is not None:
+                self.preflight_cache.clear()
             if not self.cancelled.is_set():
                 self.ready.emit(plan)
         except Exception as error:  # noqa: BLE001 - report worker failures through Qt signals
+            if self.preflight_cache is not None:
+                self.preflight_cache.clear()
             if not self.cancelled.is_set():
                 self.error.emit("\n".join([str(error), *getattr(error, "__notes__", ())]))
                 photo_id = getattr(error, "photo_id", None)
