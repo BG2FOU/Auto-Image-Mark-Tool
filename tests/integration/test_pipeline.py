@@ -287,6 +287,32 @@ def test_deduplicated_boundaries_still_reject_source_changed_during_render(
     assert not plan.items[0].target.exists()
 
 
+def test_two_workers_keep_order_source_integrity_and_no_overwrite(
+    tmp_path: Path,
+    tool: ExifTool,
+    resources: WatermarkResources,
+) -> None:
+    photos = tuple(_photo(tmp_path, f"{name}.jpg", tool) for name in "abc")
+    before = [sha256(photo.source.read_bytes()).digest() for photo in photos]
+    plan = build_plan(
+        BatchJob(photos, preset("location_and_watermark"), tmp_path / "out"),
+        _registry(tool, resources),
+    )
+    occupied = plan.items[0].target
+    occupied.parent.mkdir()
+    occupied.write_bytes(b"occupied")
+    results = run_plan(plan, workers=2)
+    assert [result.photo_id for result in results] == [photo.id for photo in photos]
+    assert [result.status for result in results] == [
+        ItemStatus.FAILED,
+        ItemStatus.SUCCESS,
+        ItemStatus.SUCCESS,
+    ]
+    assert occupied.read_bytes() == b"occupied"
+    assert [sha256(photo.source.read_bytes()).digest() for photo in photos] == before
+    assert not list((tmp_path / "out").glob(".aim-*"))
+
+
 def test_missing_profile_warning_is_in_result(
     tmp_path: Path, tool: ExifTool, resources: WatermarkResources
 ) -> None:

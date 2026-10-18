@@ -78,6 +78,7 @@ def main() -> int:
                 "workflow_gutter_stability",
                 "default_output_directory",
                 "application_icon",
+                "bounded_parallel",
             ],
         }
         if completed.returncode != 0 or data != expected:

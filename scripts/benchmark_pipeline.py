@@ -10,7 +10,6 @@ import statistics
 import subprocess
 import sys
 import tempfile
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from math import ceil
 from pathlib import Path
@@ -206,11 +205,12 @@ def measure(
                     if workers == 1:
                         batches = [execute_item(item) for item in plan.items]
                     else:
-                        # Explicit benchmark experiment; production policy is measured separately.
-                        with ThreadPoolExecutor(max_workers=workers) as pool:
-                            batches = list(pool.map(execute_item, plan.items))
+                        # Exercise bounded production dispatch and collect task-local durations.
+                        batches = [run_plan(plan, workers=workers)]
                     results = tuple(result for batch in batches for result in batch)
                     execution = perf_counter() - start
+                    if workers == 2:
+                        latencies = metrics.photo_seconds
             if any(result.status != ItemStatus.SUCCESS for result in results):
                 raise RuntimeError(str([result.error for result in results]))
             return {

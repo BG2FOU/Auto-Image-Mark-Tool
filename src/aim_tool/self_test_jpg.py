@@ -173,6 +173,43 @@ def _frequency_smoke(root: Path, resources: WatermarkResources, tool: ExifTool, 
     _check(sha256(source.read_bytes()).digest() == before, "Digital watermark source changed")
 
 
+def _parallel_smoke(root: Path, resources: WatermarkResources, tool: ExifTool) -> None:
+    inputs = root / "parallel-input"
+    inputs.mkdir()
+    photos = []
+    before = []
+    for index in range(2):
+        source = inputs / f"parallel-{index}.jpg"
+        Image.new("RGB", (1007, 672), (30, 50, 70)).save(source)
+        before.append(sha256(source.read_bytes()).digest())
+        photos.append(
+            PhotoItem(
+                source,
+                inputs,
+                taken_on=date(2026, 10, 18),
+                edits={"category": "aviation", "subject": "AIM-DEMO"},
+            )
+        )
+    registry = StepRegistry()
+    registry.register(WatermarkStep(tool, resources))
+    registry.register(ExportStep())
+    workflow = WorkflowSpec((StepSpec("watermark"), StepSpec("export")))
+    results = run_plan(
+        build_plan(BatchJob(tuple(photos), workflow, root / "parallel-output"), registry),
+        workers=2,
+    )
+    _check(all(result.status == ItemStatus.SUCCESS for result in results), "Parallel export failed")
+    _check(
+        [result.photo_id for result in results] == [photo.id for photo in photos],
+        "Parallel result order changed",
+    )
+    _check(
+        [sha256(photo.source.read_bytes()).digest() for photo in photos] == before,
+        "Parallel source changed",
+    )
+    _check(not list((root / "parallel-output").glob(".aim-*")), "Parallel scratch remained")
+
+
 def _add_editing_lists(source: Path) -> None:
     """Exercise repeated mask and document-history limits with our own tiny XMP."""
     items = "<rdf:li>0</rdf:li>" * 1001
@@ -475,6 +512,7 @@ def run_self_test(report: Path) -> int:
             _frequency_smoke(
                 root, expected_settings.resources, tool, str(window.settings.params["digital_key"])
             )
+            _parallel_smoke(root, expected_settings.resources, tool)
             result.update(
                 ok=True,
                 exiftool="13.59",
@@ -506,6 +544,7 @@ def run_self_test(report: Path) -> int:
                     "workflow_gutter_stability",
                     "default_output_directory",
                     "application_icon",
+                    "bounded_parallel",
                 ],
             )
     except Exception as error:  # noqa: BLE001 - windowless builds report all smoke failures

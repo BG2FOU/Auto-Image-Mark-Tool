@@ -17,7 +17,7 @@ from aim_tool.services.exiftool import ExifTool
 from aim_tool.services.file_state import FileState
 from aim_tool.services.preview_base import PreviewBaseCache
 from aim_tool.services.storage import WatermarkSettings
-from aim_tool.workflow.engine import ExecutionPlan, build_plan, run_plan
+from aim_tool.workflow.engine import ExecutionPlan, build_plan, recommended_workers, run_plan
 from aim_tool.workflow.registry import StepRegistry
 from aim_tool.workflow.steps import ExportStep, LocationStep, WatermarkPreflightCache, WatermarkStep
 
@@ -45,6 +45,7 @@ class BatchWorker(QThread):
                 self.plan,
                 cancelled=self.cancelled,
                 progress=lambda photo, message: self.progress.emit(str(photo.id), message),
+                workers=recommended_workers(self.plan),
             )
         self.completed.emit(results)
 

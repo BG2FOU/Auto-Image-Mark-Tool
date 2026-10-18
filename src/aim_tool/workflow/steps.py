@@ -166,6 +166,7 @@ class _PreparedWatermark:
     config: WatermarkConfig
     date_source: str
     asset_hashes: tuple[tuple[Path, str], ...]
+    size: tuple[int, int]
     source_state: FileState | None = None
 
 
@@ -379,7 +380,7 @@ class WatermarkStep:
             signature_spec(size, config.digital, self.resources.signature)
         if any(_sha256(path) != digest for path, digest in fingerprints):
             raise ValueError("Watermark asset changed during preflight")
-        prepared = _PreparedWatermark(item, spec, config, date_source, fingerprints, state)
+        prepared = _PreparedWatermark(item, spec, config, date_source, fingerprints, size, state)
         if self._preflight_cache is not None and state is not None:
             if self._cancelled is not None and self._cancelled.is_set():
                 raise InterruptedError("检查已取消")
@@ -387,6 +388,14 @@ class WatermarkStep:
                 raise OSError("Source changed during preflight")
             self._preflight_cache.remember(state, prepared, self.resources)
         self._prepared[item.id] = prepared
+
+    def working_memory_bytes(self, photo: PhotoItem) -> int | None:
+        prepared = self._prepared.get(photo.id)
+        if prepared is None or prepared.photo != photo:
+            return None
+        width, height = prepared.size
+        # Above measured per-task pixel costs, with native/tool/cache overhead included.
+        return width * height * 24 + 128 * 1024**2
 
     def execute(self, artifact: Artifact, spec: StepSpec, context: StepContext) -> Artifact:
         from aim_tool.services.images import _encode_watermark_jpeg

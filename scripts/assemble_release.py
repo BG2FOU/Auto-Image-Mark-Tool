@@ -76,6 +76,7 @@ def main() -> int:
                     "workflow_gutter_stability",
                     "default_output_directory",
                     "application_icon",
+                    "bounded_parallel",
                 ],
                 "private_assets": "excluded",
                 "application_icon_sha256": digest(ROOT / "src/aim_tool/resources/deathstar.ico"),

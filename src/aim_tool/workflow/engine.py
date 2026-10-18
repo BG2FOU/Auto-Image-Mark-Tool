@@ -1,10 +1,11 @@
-"""Whole-batch preflight and serial, failure-isolated execution."""
+"""Whole-batch preflight and bounded, failure-isolated execution."""
 
 from __future__ import annotations
 
 import math
 import tempfile
 from collections.abc import Callable
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
@@ -18,6 +19,7 @@ from aim_tool.domain import (
     PhotoItem,
     StepSpec,
 )
+from aim_tool.services.memory_budget import admitted_workers
 from aim_tool.services.output import OutputError, output_path, require_distinct_targets
 from aim_tool.workflow.contracts import Step, StepContext
 from aim_tool.workflow.registry import StepRegistry, WorkflowError
@@ -171,9 +173,15 @@ def run_plan(
     plan: ExecutionPlan,
     cancelled: Event | None = None,
     progress: Callable[[PhotoItem, str], None] | None = None,
+    *,
+    workers: int = 1,
 ) -> tuple[ItemResult, ...]:
-    """Run only an already validated plan; one failed photo does not stop others."""
+    """Run an already validated plan, serially by default or with at most two tasks."""
     signal = cancelled or Event()
+    if type(workers) is not int or workers not in {1, 2}:
+        raise ValueError("Batch workers must be 1 or 2")
+    if workers == 2 and len(plan.items) > 1:
+        return _run_parallel(plan, signal, progress)
     results: list[ItemResult] = []
     for item in plan.items:
         photo = item.photo
@@ -268,3 +276,46 @@ def run_plan(
                 )
             )
     return tuple(results)
+
+
+def recommended_workers(plan: ExecutionPlan) -> int:
+    budgets: list[int | None] = []
+    for item in plan.items:
+        if item.source_kind != ImageKind.JPEG:
+            return 1
+        estimate = None
+        for step in item.steps:
+            budget = getattr(step.implementation, "working_memory_bytes", None)
+            if budget is not None:
+                estimate = budget(item.photo)
+        budgets.append(estimate)
+    return admitted_workers(budgets)
+
+
+def _run_parallel(
+    plan: ExecutionPlan,
+    signal: Event,
+    progress: Callable[[PhotoItem, str], None] | None,
+) -> tuple[ItemResult, ...]:
+    results: list[ItemResult | None] = [None] * len(plan.items)
+    pending: dict[Future[tuple[ItemResult, ...]], int] = {}
+    next_index = 0
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="aim-batch") as pool:
+        while next_index < len(plan.items) or pending:
+            while len(pending) < 2 and next_index < len(plan.items) and not signal.is_set():
+                item = plan.items[next_index]
+                future = pool.submit(run_plan, ExecutionPlan((item,)), signal, progress)
+                pending[future] = next_index
+                next_index += 1
+            if not pending:
+                break
+            completed, _ = wait(pending, return_when=FIRST_COMPLETED)
+            for future in completed:
+                index = pending.pop(future)
+                results[index] = future.result()[0]
+    return tuple(
+        result
+        if result is not None
+        else ItemResult(plan.items[index].photo.id, ItemStatus.CANCELLED)
+        for index, result in enumerate(results)
+    )

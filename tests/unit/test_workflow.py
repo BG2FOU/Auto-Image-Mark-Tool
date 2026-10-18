@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from threading import Event
+from threading import Barrier, Event, Lock
 
 import pytest
 
@@ -19,7 +19,7 @@ from aim_tool.domain import (
     WorkflowSpec,
 )
 from aim_tool.workflow.contracts import ParameterType, StepContext
-from aim_tool.workflow.engine import build_plan, run_plan
+from aim_tool.workflow.engine import build_plan, recommended_workers, run_plan
 from aim_tool.workflow.registry import StepRegistry, WorkflowError, preset
 
 
@@ -221,3 +221,83 @@ def test_preflight_can_be_cancelled_without_creating_output(tmp_path: Path) -> N
             cancelled=cancellation,
         )
     assert not (tmp_path / "out").exists()
+
+
+def test_parallel_execution_bounds_overlap_orders_results_and_isolates_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    photos = tuple(photo(tmp_path / "input", f"{name}.jpg") for name in "abcd")
+    components = registry()
+    step = components.get("location")
+    step.fail_name = "a.jpg"
+    original = step.execute
+    barrier, lock = Barrier(2), Lock()
+    active = maximum = 0
+
+    def overlap(artifact, spec, context):
+        nonlocal active, maximum
+        with lock:
+            active += 1
+            maximum = max(maximum, active)
+        try:
+            barrier.wait(timeout=10)
+            return original(artifact, spec, context)
+        finally:
+            with lock:
+                active -= 1
+
+    monkeypatch.setattr(step, "execute", overlap)
+    plan = build_plan(BatchJob(photos, preset("location_only"), tmp_path / "out"), components)
+    results = run_plan(plan, workers=2)
+    assert maximum == 2
+    assert [result.photo_id for result in results] == [item.id for item in photos]
+    assert [result.status for result in results] == [ItemStatus.FAILED] + [ItemStatus.SUCCESS] * 3
+
+
+def test_parallel_cancel_stops_dispatching_and_drains_started_items(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    photos = tuple(photo(tmp_path / "input", f"{name}.jpg") for name in "abcd")
+    components = registry()
+    step = components.get("location")
+    original = step.execute
+    barrier = Barrier(2)
+    stop = Event()
+
+    def cancel_pair(artifact, spec, context):
+        barrier.wait(timeout=10)
+        context.cancelled.set()
+        return original(artifact, spec, context)
+
+    monkeypatch.setattr(step, "execute", cancel_pair)
+    plan = build_plan(BatchJob(photos, preset("location_only"), tmp_path / "out"), components)
+    results = run_plan(plan, stop, workers=2)
+    assert all(result.status == ItemStatus.CANCELLED for result in results)
+    assert set(step.calls) == {"a.jpg", "b.jpg"}
+    assert not list((tmp_path / "out").glob(".aim-*"))
+
+
+def test_worker_recommendation_requires_jpeg_watermark_and_known_memory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from aim_tool.services import memory_budget
+
+    photos = tuple(photo(tmp_path / "input", f"{name}.jpg") for name in "ab")
+    components = registry()
+    monkeypatch.setattr(
+        components.get("watermark"), "working_memory_bytes", lambda _: 256 * 1024**2, raising=False
+    )
+    plan = build_plan(BatchJob(photos, preset("watermark_only"), tmp_path / "out"), components)
+    monkeypatch.setattr(memory_budget, "available_memory", lambda: 2 * 1024**3)
+    assert recommended_workers(plan) == 2
+    monkeypatch.setattr(memory_budget, "available_memory", lambda: 512 * 1024**2)
+    assert recommended_workers(plan) == 1
+    assert (
+        recommended_workers(
+            build_plan(BatchJob(photos, preset("location_only"), tmp_path / "out"), components)
+        )
+        == 1
+    )

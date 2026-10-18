@@ -121,6 +121,7 @@ class Metrics:
         self.stages: dict[str, dict[str, dict[str, float]]] = defaultdict(dict)
         self.memory: dict[str, dict[str, float | None]] = {}
         self.memory_error: str | None = None
+        self.photo_seconds: list[float] = []
         self._lock = Lock()
         self._stop = Event()
         self._thread = Thread(target=self._sample, daemon=True)
@@ -162,7 +163,21 @@ class Metrics:
 
         from aim_tool.services import frequency_watermark, images, watermark
         from aim_tool.services.exiftool import ExifTool
-        from aim_tool.workflow import steps
+        from aim_tool.workflow import engine, steps
+
+        original_plan = engine.run_plan
+
+        @functools.wraps(original_plan)
+        def timed_item(plan, *args, **kwargs):
+            start = perf_counter()
+            try:
+                return original_plan(plan, *args, **kwargs)
+            finally:
+                if len(plan.items) == 1:
+                    with self._lock:
+                        self.photo_seconds.append(perf_counter() - start)
+
+        self._patches.enter_context(patch.object(engine, "run_plan", timed_item))
 
         for owner, names in (
             (images, ("validate_jpeg", "prepare_jpeg", "_digest")),

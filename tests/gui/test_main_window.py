@@ -2,7 +2,7 @@
 
 from hashlib import sha256
 from pathlib import Path
-from threading import Event
+from threading import Barrier, Event
 from types import SimpleNamespace
 
 import pytest
@@ -97,6 +97,51 @@ def test_check_then_start_reuses_only_validated_pixels(
         assert calls == 1
         assert window.results[0].status == ItemStatus.SUCCESS
     finally:
+        _close(qtbot, window)
+
+
+def test_close_drains_both_active_batch_tasks_without_committing(
+    qtbot: QtBot,
+    tmp_path: Path,
+    synthetic_watermark_resources: WatermarkResources,
+    tool: ExifTool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from aim_tool.services import images
+    from aim_tool.ui import workers
+
+    sources = (tmp_path / "input/a.jpg", tmp_path / "input/b.jpg")
+    for source in sources:
+        _photo(source)
+    gate, started, release = Barrier(2), Event(), Event()
+    original = images._encode_watermark_jpeg
+
+    def held(*args, **kwargs):
+        gate.wait(timeout=10)
+        started.set()
+        assert release.wait(10)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(workers, "recommended_workers", lambda _: 2)
+    monkeypatch.setattr(images, "_encode_watermark_jpeg", held)
+    window = _window(qtbot, tmp_path, synthetic_watermark_resources)
+    try:
+        window.add_photos(sources)
+        window.workflow.presets.setCurrentIndex(2)
+        window.bulk_subject.setText("B-1356")
+        window.apply_fields_button.click()
+        window.apply_coordinates(24.2, 118.4)
+        window.output_edit.setText(str(tmp_path / "out"))
+        window.start()
+        qtbot.waitUntil(started.is_set, timeout=20000)
+        window.close()
+        assert window.has_active_workers
+        release.set()
+        qtbot.waitUntil(lambda: not window.has_active_workers, timeout=20000)
+        assert not list((tmp_path / "out").glob("*_marked.jpg"))
+        assert not list((tmp_path / "out").glob(".aim-*"))
+    finally:
+        release.set()
         _close(qtbot, window)
 
 
