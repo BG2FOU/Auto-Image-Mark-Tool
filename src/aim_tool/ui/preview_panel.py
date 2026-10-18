@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from aim_tool.domain import PhotoItem
+from aim_tool.services.preview_base import PreviewBaseCache
 from aim_tool.services.storage import WatermarkSettings
 from aim_tool.ui.workers import PreviewRequest, PreviewResult, PreviewWorker
 
@@ -116,6 +117,7 @@ class PreviewPanel(QWidget):
         self._worker: PreviewWorker | None = None
         self._pending: PreviewRequest | None = None
         self._closed = False
+        self._base_cache = PreviewBaseCache()
         self.last_result: PreviewResult | None = None
         heading = QLabel("画面预览")
         heading.setObjectName("sectionTitle")
@@ -162,6 +164,7 @@ class PreviewPanel(QWidget):
         self.canvas.update()
 
     def invalidate(self, message: str) -> None:
+        self._base_cache.clear()
         self.generation += 1
         self._pending = None
         if self._worker is not None:
@@ -189,7 +192,7 @@ class PreviewPanel(QWidget):
         if self._pending is None or self._closed:
             return
         request, self._pending = self._pending, None
-        worker = PreviewWorker(request, self)
+        worker = PreviewWorker(request, self, base_cache=self._base_cache)
         self._worker = worker
         worker.ready.connect(self.accept_result)
         worker.error.connect(self._failed)
@@ -225,6 +228,7 @@ class PreviewPanel(QWidget):
             self.idle.emit()
 
     def shutdown(self) -> None:
+        self._base_cache.clear()
         self._closed = True
         self._pending = None
         if self._worker is not None:

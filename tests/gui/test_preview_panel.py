@@ -16,6 +16,51 @@ from aim_tool.ui.preview_panel import PreviewPanel
 from aim_tool.ui.workers import PreviewResult
 
 
+def test_preview_reuses_base_across_parameters_without_accumulating_watermark(
+    qtbot: QtBot,
+    tmp_path: Path,
+    synthetic_watermark_resources: WatermarkResources,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from aim_tool.services import images
+
+    source = tmp_path / "base.jpg"
+    Image.new("RGB", (1007, 672), (30, 50, 70)).save(source)
+    photo = PhotoItem(
+        source,
+        tmp_path,
+        taken_on=date(2026, 10, 18),
+        edits={"category": "aviation", "subject": "B-1356"},
+    )
+    calls = 0
+    original = images.prepare_jpeg
+
+    def counted(path):
+        nonlocal calls
+        calls += 1
+        return original(path)
+
+    monkeypatch.setattr(images, "prepare_jpeg", counted)
+    panel = PreviewPanel()
+    qtbot.addWidget(panel)
+    try:
+        panel.request(photo, WatermarkSettings(synthetic_watermark_resources))
+        qtbot.waitUntil(lambda: not panel.busy, timeout=20000)
+        panel.request(photo, None)
+        qtbot.waitUntil(lambda: not panel.busy, timeout=20000)
+        assert calls == 1 and panel.last_result is not None
+        with Image.open(source) as expected:
+            color = expected.getpixel((0, 0))
+        result = panel.last_result.image
+        assert result.pixelColor(1000, 665).getRgb()[:3] == color
+        panel.invalidate("paused")
+        panel.request(photo, None)
+        qtbot.waitUntil(lambda: not panel.busy, timeout=20000)
+        assert calls == 2
+    finally:
+        panel.shutdown()
+
+
 def test_digital_preview_uses_selected_algorithm_level_and_original_size(
     qtbot: QtBot,
     tmp_path: Path,

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QWidget
 from aim_tool.domain import BatchJob, PhotoItem, StepSpec
 from aim_tool.services.exiftool import ExifTool
 from aim_tool.services.file_state import FileState
+from aim_tool.services.preview_base import PreviewBaseCache
 from aim_tool.services.storage import WatermarkSettings
 from aim_tool.workflow.engine import ExecutionPlan, build_plan, run_plan
 from aim_tool.workflow.registry import StepRegistry
@@ -182,10 +183,17 @@ class PreviewWorker(QThread):
     ready = Signal(object)
     error = Signal(int, str)
 
-    def __init__(self, request: PreviewRequest, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        request: PreviewRequest,
+        parent: QWidget | None = None,
+        *,
+        base_cache: PreviewBaseCache | None = None,
+    ) -> None:
         super().__init__(parent)
         self.request = request
         self.cancelled = Event()
+        self.base_cache = base_cache
 
     def run(self) -> None:
         from aim_tool.services.images import prepare_jpeg
@@ -197,7 +205,11 @@ class PreviewWorker(QThread):
 
         request = self.request
         try:
-            prepared = prepare_jpeg(request.photo.source)
+            prepared = (
+                self.base_cache.prepare(request.photo.source, self.cancelled)
+                if self.base_cache is not None
+                else prepare_jpeg(request.photo.source)
+            )
             size = prepared.pixels.size
             bounds = None
             caption = f"{size[0]} × {size[1]} px"
