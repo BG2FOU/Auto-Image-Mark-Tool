@@ -1,6 +1,7 @@
 """Production defaults, resources, fixed demo compatibility and cancellation."""
 
 from dataclasses import replace
+from hashlib import sha256
 from pathlib import Path
 from threading import Event
 
@@ -11,6 +12,41 @@ from PIL import Image, ImageDraw
 from aim_tool.services import frequency_watermark as frequency
 
 KEY = "a" * 64
+
+
+@pytest.mark.parametrize(
+    "algorithm,strength,digest,clipped",
+    [
+        ("dct", 8, "12451c5a5432f2b86e00b940dca9d98d8c093179ddde84692eaec9fc95e8b3d3", 365),
+        ("dct", 16, "14956165f64de7949362b134b253c562e4962bbf7984c2b877a7df8f0199ca2e", 414),
+        ("dct", 32, "c59112af2dd8c57ce8c29eaabd1fd1d80d70f0e028749b7d8e2996bf1e4a2ca1", 509),
+        ("fft", 10, "6db34765cc1ad8010e31c4527c01921a40c817e8ecddffd2a17db283c2f98ce8", 2119),
+        ("fft", 20, "c82fcd8cb55fcddc0675fd97bb4e39721f857987720f6ffdccee0ef3a3455bff", 2331),
+        ("fft", 40, "01114c0ed7ba260b90377127ff18b465902e5618040f43f7a31bbeb731d4ac80", 2801),
+    ],
+)
+def test_striped_buffers_match_fixed_pre_optimization_v1_outputs(
+    algorithm: str,
+    strength: int,
+    digest: str,
+    clipped: int,
+) -> None:
+    # Captured from the I2 implementation before changing buffers; odd edges and clipping.
+    rng = np.random.default_rng(471)
+    rgb = rng.integers(0, 256, (259, 397, 3), dtype=np.uint8)
+    bits = rng.integers(0, 2, (7, 9)).astype(bool)
+    before = rgb.copy()
+    spec = frequency.Spec(algorithm, (397, 259), (9, 7), strength, 3)
+    marked, stats = frequency.embed(rgb, bits, spec, KEY)
+    assert sha256(marked.tobytes()).hexdigest() == digest
+    assert stats == {"clipped_channel_values": clipped, "slot_count": 189}
+    assert np.array_equal(rgb, before)
+    reference_y = (
+        rgb[..., 0].astype(np.float32) * 0.299
+        + rgb[..., 1].astype(np.float32) * 0.587
+        + rgb[..., 2].astype(np.float32) * 0.114
+    )
+    assert np.array_equal(frequency.luminance(rgb), reference_y)
 
 
 def signature(path: Path, *, width: int = 100) -> None:

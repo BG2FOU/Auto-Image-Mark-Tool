@@ -210,13 +210,18 @@ def bitmap_image(bits: Bits, scale: int = 1) -> Image.Image:
     return image.resize((image.width * scale, image.height * scale), Image.Resampling.NEAREST)
 
 
-def luminance(rgb: Rgb) -> Floats:
-    result = (
-        rgb[..., 0].astype(np.float32) * 0.299
-        + rgb[..., 1].astype(np.float32) * 0.587
-        + rgb[..., 2].astype(np.float32) * 0.114
-    )
-    return cast(Floats, result)
+def luminance(rgb: Rgb, *, cancelled: Event | None = None) -> Floats:
+    result = np.empty(rgb.shape[:2], dtype=np.float32)
+    for start in range(0, rgb.shape[0], 128):
+        check_cancelled(cancelled)
+        stripe = rgb[start : start + 128]
+        # Preserve the v1 multiplication/addition order, limiting only temporary extent.
+        result[start : start + 128] = (
+            stripe[..., 0].astype(np.float32) * 0.299
+            + stripe[..., 1].astype(np.float32) * 0.587
+            + stripe[..., 2].astype(np.float32) * 0.114
+        )
+    return result
 
 
 def _allocation(spec: Spec, key: str) -> tuple[Indexes, Bits]:
@@ -334,22 +339,24 @@ def embed(
     slots, whitening = _allocation(spec, key)
     encoded = np.tile(bits.ravel(), spec.repeats) ^ whitening
     signed = np.where(encoded, 1, -1).astype(np.float32)
-    original_y = luminance(rgb)
-    marked_y = original_y.copy()
+    marked_y = luminance(rgb, cancelled=cancelled)
     if spec.algorithm == "dct":
         _dct_embed(marked_y, slots, signed, spec, cancelled)
     else:
         _fft_transform(marked_y, slots, spec, signed, cancelled)
-    marked_y -= original_y
-    delta = marked_y
-    del original_y
     output = np.empty_like(rgb)
     clipped = 0
-    for channel in range(3):
+    for start in range(0, rgb.shape[0], 128):
         check_cancelled(cancelled)
-        values = rgb[..., channel].astype(np.float32) + delta
-        clipped += int(np.count_nonzero((values < 0) | (values > 255)))
-        output[..., channel] = np.clip(np.rint(values), 0, 255).astype(np.uint8)
+        stripe = rgb[start : start + 128]
+        delta = marked_y[start : start + 128]
+        delta -= luminance(stripe, cancelled=cancelled)
+        for channel in range(3):
+            values = stripe[..., channel].astype(np.float32) + delta
+            clipped += int(np.count_nonzero((values < 0) | (values > 255)))
+            np.rint(values, out=values)
+            np.clip(values, 0, 255, out=values)
+            output[start : start + 128, :, channel] = values
     return output, {"clipped_channel_values": clipped, "slot_count": len(slots)}
 
 
@@ -357,7 +364,7 @@ def extract(rgb: Rgb, spec: Spec, key: str, *, cancelled: Event | None = None) -
     check_cancelled(cancelled)
     _check_pixels(rgb, spec)
     slots, whitening = _allocation(spec, key)
-    y = luminance(rgb)
+    y = luminance(rgb, cancelled=cancelled)
     observed = (
         _dct_read(y, slots, spec, cancelled)
         if spec.algorithm == "dct"
