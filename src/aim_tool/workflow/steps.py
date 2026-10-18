@@ -370,7 +370,7 @@ class WatermarkStep:
             not character.isascii() for character in config.content
         ):
             paths.append(self.resources.chinese_font)
-        fingerprints = tuple((path, _sha256(path)) for path in paths)
+        fingerprints = tuple((path, _sha256(path)) for path in dict.fromkeys(paths))
         size = validate_jpeg(item.source)
         render_watermark_region(size, config, self.resources)
         if config.digital is not None:
@@ -411,7 +411,9 @@ class WatermarkStep:
             original_hash = current.digest
         else:
             original_hash = _sha256(artifact.source)
-        authority_hash = _sha256(artifact.path)
+        authority_hash = (
+            original_hash if artifact.path == artifact.source else _sha256(artifact.path)
+        )
         target = context.scratch / "watermark" / "rendered.jpg"
         warnings = _encode_watermark_jpeg(
             artifact.path,
@@ -436,7 +438,13 @@ class WatermarkStep:
                 self.resources.signature,
                 cancelled=context.cancelled,
             )
-        if _sha256(artifact.source) != original_hash or _sha256(artifact.path) != authority_hash:
+        final_hashes = {
+            path: _sha256(path) for path in dict.fromkeys((artifact.source, artifact.path))
+        }
+        if (
+            final_hashes[artifact.source] != original_hash
+            or final_hashes[artifact.path] != authority_hash
+        ):
             raise OSError("Source or current artifact changed during watermark export")
         if any(_sha256(path) != digest for path, digest in prepared.asset_hashes):
             raise ValueError("Watermark asset changed during rendering")

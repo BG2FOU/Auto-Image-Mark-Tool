@@ -259,6 +259,34 @@ def test_cached_preflight_rejects_same_size_mtime_source_replacement_before_exec
     assert not plan.items[0].target.exists()
 
 
+@pytest.mark.parametrize("workflow", ["watermark_only", "location_and_watermark"])
+def test_deduplicated_boundaries_still_reject_source_changed_during_render(
+    tmp_path: Path,
+    tool: ExifTool,
+    resources: WatermarkResources,
+    monkeypatch: pytest.MonkeyPatch,
+    workflow: str,
+) -> None:
+    from aim_tool.services import images
+
+    photo = _photo(tmp_path, "a.jpg", tool)
+    plan = build_plan(
+        BatchJob((photo,), preset(workflow), tmp_path / "out"),
+        _registry(tool, resources),
+    )
+    original = images._encode_watermark_jpeg
+
+    def replace_during_render(*args, **kwargs):
+        result = original(*args, **kwargs)
+        tool._run_for_path(photo.source, "-overwrite_original", "-IFD0:Make=EDIT")
+        return result
+
+    monkeypatch.setattr(images, "_encode_watermark_jpeg", replace_during_render)
+    result = run_plan(plan)[0]
+    assert result.status == ItemStatus.FAILED and "changed during" in str(result.error)
+    assert not plan.items[0].target.exists()
+
+
 def test_missing_profile_warning_is_in_result(
     tmp_path: Path, tool: ExifTool, resources: WatermarkResources
 ) -> None:
