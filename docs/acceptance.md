@@ -621,3 +621,34 @@ rc.5 用 viewport 实时尺寸计算字号，滚动条出现后挤窄区域，�
 实际下载的 DEB 解包程序再次通过 27 类离线自检（version=0.5.0、frozen=true、ok=true、ExifTool=13.59），日志和审计摘要留在本地忽略目录。公开 EXE 76,681,562 字节、SHA256 `83b3ebe72707c1cf6f60d609843ab02a2fcd623da6e12a48b1db782615e472df`；ZIP 77,056,314 字节；DEB 82,470,176 字节，内部版本 0.5.0。EXE 未签名；NEF 显影/水印和未知几何变换自动水印同步未开放。
 
 本验收说明在全部发布/下载验证后另行提交；后续 main 文档提交不改变 v0.5.0 标签、发布源或附件。用户提供的原始 data/deathstar.ico 保留本地，公开资源副本已纳入源码及程序包；私人文件和测试包不提交。
+
+## 2026-10-26：0.5.1rc1 快速预检与 NEF 性能测试包
+
+用户授权按新计划实施、优化 NEF 校验，并要求按节点提交推送；随后明确“先不要发布，编译完成之后先给 EXE 测试，测试完成之后发布”。本阶段交付本地新测试包，**原生 Windows 人工验收等待用户反馈；未合并 main、未创建发布标签/Release、未触发正式远端发行构建**。
+
+### 来源和实现
+
+- Q0 `ab7e2ad`：补齐预检/执行/首张与完整摘要计量；Q1 `b2efaa9`：轻量计划与逐项内容绑定；Q2 `88104de`：默认快速、完整可选；Q3 `32a1e3e`：NEF 完整预览在 ExifTool 内计算摘要，三请求合为两请求。各节点已提交推送并核对远端。
+- 测试候选源提交：`04e82713694c37909e3ca911d7f45c3b2b11d01d`，版本 `0.5.1rc1`，分支 `codex/performance-check-processing`。main 核对仍为 `1b510b11895912c59a36aa238da468219f59000c`。后续文档提交不会改变此 EXE 的来源 SHA。
+- 快速预检不完整解码整批照片，当前源快照、日期/GPS 和 NEF 基线移到对应照片执行准备；保持最终元数据/完整签名/RAW及全部预览、原片和不覆盖提交检查。坏文件可在已有部分成功后按行失败；完整模式保留提前整批检查。
+- 精确 Git 快照白名单归档 87 个源码/构建文件；构建前后逐项摘要相同，不复制未提交工作树。固定公开 ExifTool/许可缓存单独加入构建环境，私人照片、字体、签名及未跟踪 demo 不进入快照。
+
+### 已完成的验证
+
+- 最终本地非视觉回归：**468 passed、2 平台 skipped、1 visual deselected**；真实授权 NEF 在本地参与验证。Ruff/格式、严格 mypy、pip check 通过，源码 28 类离线自检通过。
+- JPEG 四场景各五轮交替，固定单任务：120 张全部成功。直接开始关闭数字的自动预检 1.902→0.109 s，累计 7.094→5.403 s；DCT/FFT 组合累计分别减少 17.3%/18.3%。两张 NEF 串行五轮累计 2.246→1.545 s（减少 31.2%），新旧对应输出字节摘要相同、原片不变。规模诊断及详细口径见[实施记录](performance-implementation.md)，不外推为 Windows 或全部机型承诺。
+- 使用现有本地离线 Wine 11、官方 Windows Python 3.12.3 x64、PyInstaller 6.22.3、ExifTool 13.59、Pillow 12.3.0、NumPy 2.5.3、PySide6 6.11.2，从上述快照分别编译 onedir 和 onefile。明确设置新源码路径并核对 `aim_tool.__file__`，未误用旧 editable 路径。
+- 目录版、单文件版分别由 `smoke_exe.py` 在源码目录外、干净外部路径环境运行 **28 类冻结自检全部通过**。同一个单文件 EXE 复制到“中文 测试路径”再跑同样 28 类，全部通过；不重建替换已核对的文件。
+- 冻结检查包括实际 DCT/FFT 最终恢复、合成 NEF GPS/RAW保护、颜色与方向、原片和清理、批量排序/选择以及受限双任务。Wine 编译与自动化结果不代替用户原生 Windows 桌面/真实照片/独立 Nikon 软件验收。
+- PE x64、ProductVersion/FileVersion=`0.5.1rc1` 直接解析一致；目录包 982 文件、单文件归档 993 项与 899 个 Python 模块审计通过。未包含私人图片/字体/签名/个人配置、rawpy/libraw、本地 demo 或 Wine ICU 辅助 DLL。许可收集为 458 个路径；ZIP 完整性与内部 EXE 哈希另行验证。
+- 首次临时构建驱动用 runpy 时遗漏 scripts 导入路径，未能加载 collect_licenses；只修正临时驱动后完整重跑，不修改应用或跳过自检。失败与成功日志均保存在本地忽略目录。
+
+### 测试包交付与待用户验收
+
+本地忽略目录 `build/performance-exe/0.5.1rc1/`：
+
+- `AutoImageMarkTool-0.5.1rc1-test-windows-x64.exe`，**72,863,656 字节**；SHA256：`f03fb4359f1c43dce03ec12d1b10dcd09c37ad3bdb54aa4e0ed48b342f177492`。
+- 同名单文件测试 ZIP，以及 `AutoImageMarkTool-0.5.1rc1-test-windows-x64-onedir.zip` 可替换依赖目录包。
+- `BUILD_INFO.json`、`SHA256SUMS.txt`、`EXE.sha256`、`LICENSES.zip`、`README-test.txt`。程序未代码签名；构建记录明确标注用户原生 Windows 验收 pending。
+
+请用户在常用 Windows 环境测试快速/完整检查等待、JPG 三流程、NEF 坐标/海拔/时间与独立软件打开、中文路径、取消和失败重试。测试通过前停在本地测试包交付，不据兼容环境自检进行发布。
