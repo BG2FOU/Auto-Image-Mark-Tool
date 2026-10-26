@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import os
 import random
@@ -22,7 +23,7 @@ from PIL import Image, ImageCms, ImageDraw
 from aim_tool.domain import BatchJob, ItemResult, ItemStatus, PhotoItem
 from aim_tool.self_test_jpg import _resources
 from aim_tool.services.exiftool import ExifTool
-from aim_tool.workflow.engine import ExecutionPlan, PlannedItem, build_plan, run_plan
+from aim_tool.workflow.engine import PlannedItem, build_plan, run_plan
 from aim_tool.workflow.registry import StepRegistry, preset
 from aim_tool.workflow.steps import ExportStep, LocationStep, RawDevelopStep, WatermarkStep
 
@@ -38,7 +39,7 @@ def peak_rss_mib() -> float | None:
     return None
 
 
-def gui_measure(root, photos, resources, flow, params, metrics, entry):
+def gui_measure(root, photos, resources, flow, params, metrics, entry, preflight_mode):
     from PySide6.QtWidgets import QApplication
 
     from aim_tool.self_test_jpg import _wait
@@ -62,22 +63,30 @@ def gui_measure(root, photos, resources, flow, params, metrics, entry):
     window.apply_fields_button.click()
     window.apply_coordinates(24.2, 118.4)
     window.output_edit.setText(str(root / "output"))
+    if hasattr(window, "preflight_mode"):
+        mode_index = window.preflight_mode.findData(preflight_mode)
+        if mode_index < 0:
+            raise ValueError(f"GUI does not support {preflight_mode} preflight")
+        window.preflight_mode.setCurrentIndex(mode_index)
+    elif preflight_mode != "full":
+        raise ValueError("This checkout does not support quick preflight")
     _wait(lambda: not window.has_active_workers, 120)
     checked = 0.0
     try:
         if entry == "gui-check-start":
-            metrics.phase = "manual_check"
+            metrics.begin_action("manual_check")
             start = perf_counter()
             window.check_button.click()
             _wait(lambda: not window._busy, 300)
             checked = perf_counter() - start
             if window.last_plan is None:
                 raise RuntimeError(window.log.toPlainText())
-        metrics.phase = "start_to_complete"
+        metrics.begin_action("automatic_preflight")
         start = perf_counter()
         window.start_button.click()
         _wait(lambda: not window._busy, 600)
         elapsed = perf_counter() - start
+        metrics.mark("batch_completed_seconds", first=False)
         return window.results, checked, elapsed
     finally:
         window.close()
@@ -93,6 +102,7 @@ def measure(
     digital: str = "off",
     level: str = "medium",
     entry: str = "pipeline",
+    preflight_mode: str = "full",
 ) -> dict[str, object]:
     with tempfile.TemporaryDirectory(prefix="aim-benchmark-") as name:
         root = Path(name)
@@ -176,28 +186,38 @@ def measure(
         exif_seconds = 0.0
         try:
             latencies = []
-            with Metrics() as metrics:
+            with Metrics(
+                source_paths=(photo.source for photo in photos),
+                asset_paths=(resources.latin_font, resources.chinese_font, resources.signature),
+            ) as metrics:
                 if entry != "pipeline":
                     results, preflight, execution = gui_measure(
-                        root, photos, resources, flow, params, metrics, entry
+                        root, photos, resources, flow, params, metrics, entry, preflight_mode
                     )
                     preflight_calls = preflight_exif = None
                 else:
                     metrics.phase = "preflight"
                     start = perf_counter()
-                    plan = build_plan(job, registry)
+                    mode_options = (
+                        {"mode": preflight_mode}
+                        if "mode" in inspect.signature(build_plan).parameters
+                        else {}
+                    )
+                    if preflight_mode != "full" and not mode_options:
+                        raise ValueError("This checkout does not support quick preflight")
+                    plan = build_plan(job, registry, **mode_options)
                     preflight = perf_counter() - start
                     preflight_calls, preflight_exif = calls, exif_seconds
                     # Match GUI workers: preflight closes its session; execution reopens it.
                     tool.close()
                     calls = 0
                     exif_seconds = 0.0
-                    metrics.phase = "execution"
+                    metrics.begin_action("execution")
                     start = perf_counter()
 
                     def execute_item(item: PlannedItem) -> tuple[ItemResult, ...]:
                         item_start = perf_counter()
-                        batch = run_plan(ExecutionPlan((item,)))
+                        batch = run_plan(replace(plan, items=(item,)))
                         with metrics_lock:
                             latencies.append(perf_counter() - item_start)
                         return batch
@@ -209,6 +229,7 @@ def measure(
                         batches = [run_plan(plan, workers=workers)]
                     results = tuple(result for batch in batches for result in batch)
                     execution = perf_counter() - start
+                    metrics.mark("batch_completed_seconds", first=False)
                     if workers == 2:
                         latencies = metrics.photo_seconds
             if any(result.status != ItemStatus.SUCCESS for result in results):
@@ -220,11 +241,30 @@ def measure(
                 "digital": digital,
                 "level": level,
                 "entry": entry,
+                "preflight_mode": preflight_mode,
                 "size": size,
                 "input_bytes_each": source.stat().st_size,
                 "preflight_seconds": preflight,
                 "execution_seconds": execution,
                 "total_seconds": preflight + execution,
+                "manual_preflight_seconds": metrics.stages.get("manual_check", {})
+                .get("PreflightWorker.run", {})
+                .get("seconds", 0.0),
+                "automatic_preflight_seconds": metrics.stages.get("automatic_preflight", {})
+                .get("PreflightWorker.run", {})
+                .get("seconds", 0.0),
+                "build_plan_seconds_by_phase": metrics.preflight_seconds,
+                "execution_only_seconds": metrics.execution_seconds,
+                "start_to_first_preparation_seconds": metrics.milestones.get(
+                    "first_item_preparation_started_seconds"
+                ),
+                "start_to_first_commit_seconds": metrics.milestones.get(
+                    "first_output_committed_seconds"
+                ),
+                "start_to_complete_seconds": execution,
+                "execution_milestones": metrics.milestones,
+                "configured_execution_workers": metrics.configured_workers,
+                "observed_peak_active_items": metrics.peak_active_items,
                 "photos_per_second": len(results) / execution,
                 "photo_seconds": latencies,
                 "photo_p50_seconds": statistics.median(latencies) if latencies else None,
@@ -232,6 +272,7 @@ def measure(
                 if latencies
                 else None,
                 "inclusive_stages": metrics.stages,
+                "digest_reads": metrics.digest_reads,
                 "process_tree_sampled_peaks": metrics.memory,
                 "memory_sampling_error": metrics.memory_error,
                 "preflight_exiftool_calls": preflight_calls,
@@ -259,6 +300,7 @@ def main() -> int:
     parser.add_argument(
         "--entry", choices=("pipeline", "gui-start", "gui-check-start"), default="pipeline"
     )
+    parser.add_argument("--preflight-mode", choices=("full", "quick"), default="full")
     parser.add_argument(
         "--flow",
         choices=("all", "location_only", "watermark_only", "location_and_watermark"),
@@ -283,6 +325,7 @@ def main() -> int:
                     args.digital,
                     args.level,
                     args.entry,
+                    args.preflight_mode,
                 )
             )
         )
@@ -317,6 +360,8 @@ def main() -> int:
                     args.level,
                     "--entry",
                     args.entry,
+                    "--preflight-mode",
+                    args.preflight_mode,
                 ],
                 cwd=ROOT,
                 text=True,
@@ -339,6 +384,13 @@ def main() -> int:
                 "preflight_seconds",
                 "execution_seconds",
                 "total_seconds",
+                "manual_preflight_seconds",
+                "automatic_preflight_seconds",
+                "execution_only_seconds",
+                "start_to_first_preparation_seconds",
+                "start_to_first_commit_seconds",
+                "start_to_complete_seconds",
+                "observed_peak_active_items",
                 "main_peak_rss_mib",
             )
             if all(record[key] is not None for record in selected)
@@ -349,10 +401,20 @@ def main() -> int:
         "python": sys.version,
         "platform": sys.platform,
         "workers": args.workers,
+        "preflight_mode": args.preflight_mode,
         "scope": "Generated tiled-noise JPEG hardlinks and synthetic assets; filesystem cache not flushed; "
         "fresh Python process per round; main high-water RSS includes setup; sampled process-tree peaks "
         "sum simultaneous working sets (shared pages may be counted repeatedly), sampled every 25ms; "
-        "stages are inclusive and overlap; GUI start includes automatic preflight; GUI setup/import excluded; "
+        "stages are inclusive and overlap; legacy GUI execution_seconds includes automatic preflight, "
+        "and legacy GUI preflight_seconds is only the optional manual-check click wait; "
+        "manual_preflight_seconds and automatic_preflight_seconds measure PreflightWorker.run including "
+        "ExifTool session startup/close; build_plan_seconds_by_phase isolates planning calls; "
+        "execution_only_seconds measures outer run_plan calls; GUI setup/import excluded; "
+        "execution milestones start at the Start click (pipeline: execution dispatch), and first preparation "
+        "is the real source-preparation progress callback or first component prepare/execute entry; "
+        "first commit is successful ExportStep.execute return; configured workers are dispatch limits, "
+        "observed active items span first prepare/execute to export or failure; digest logical_bytes counts "
+        "file sizes of successful complete digest calls, not physical disk I/O, and excludes partial failed reads; "
         "ExifTool timings include session-lock wait; per-photo p95 is empirical with small sample limits.",
         "records": records,
         "medians": summary,
