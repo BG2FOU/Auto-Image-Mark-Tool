@@ -9,6 +9,7 @@ from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
+from typing import Any
 
 from aim_tool.domain import (
     Artifact,
@@ -19,9 +20,10 @@ from aim_tool.domain import (
     PhotoItem,
     StepSpec,
 )
+from aim_tool.services.file_state import file_state
 from aim_tool.services.memory_budget import admitted_workers
 from aim_tool.services.output import OutputError, output_path, require_distinct_targets
-from aim_tool.workflow.contracts import Step, StepContext
+from aim_tool.workflow.contracts import PreflightMode, Step, StepContext
 from aim_tool.workflow.registry import StepRegistry, WorkflowError
 
 
@@ -45,6 +47,7 @@ class PlannedItem:
 @dataclass(frozen=True)
 class ExecutionPlan:
     items: tuple[PlannedItem, ...]
+    mode: PreflightMode = "full"
 
 
 def _source_kind(photo: PhotoItem) -> ImageKind:
@@ -111,10 +114,18 @@ def _validate_parameters(spec: StepSpec, implementation: Step) -> None:
 
 
 def build_plan(
-    job: BatchJob, registry: StepRegistry, *, cancelled: Event | None = None
+    job: BatchJob,
+    registry: StepRegistry,
+    *,
+    cancelled: Event | None = None,
+    mode: PreflightMode = "full",
 ) -> ExecutionPlan:
-    """Reject every unsafe item before any step can execute."""
+    """Check batch-wide constraints; quick mode prepares current content per item."""
+    if mode not in {"quick", "full"}:
+        raise ValueError("Preflight mode must be quick or full")
     enabled = _validate_order(job, registry)
+    for spec in enabled:
+        _validate_parameters(spec, registry.get(spec.component_id))
     planned: list[PlannedItem] = []
     seen_ids: set[object] = set()
     for photo in job.photos:
@@ -134,7 +145,6 @@ def build_plan(
             if cancelled is not None and cancelled.is_set():
                 raise WorkflowError("Preflight cancelled")
             implementation = registry.get(spec.component_id)
-            _validate_parameters(spec, implementation)
             if source_kind not in implementation.source_kinds:
                 continue
             if kind not in implementation.accepts:
@@ -142,7 +152,12 @@ def build_plan(
                     f"{spec.component_id} cannot consume {kind.value} for {photo.source.name}"
                 )
             try:
-                implementation.validate(photo, spec)
+                validate = (
+                    getattr(implementation, "quick_validate", implementation.validate)
+                    if mode == "quick"
+                    else implementation.validate
+                )
+                validate(photo, spec)
             except Exception as error:
                 error.add_note(f"Photo: {photo.source.name}; step: {spec.component_id}")
                 error.__dict__["photo_id"] = photo.id
@@ -166,7 +181,7 @@ def build_plan(
         require_distinct_targets(tuple(item.target for item in planned))
     except OutputError as error:
         raise WorkflowError(str(error)) from error
-    return ExecutionPlan(tuple(planned))
+    return ExecutionPlan(tuple(planned), mode)
 
 
 def run_plan(
@@ -192,33 +207,62 @@ def run_plan(
         warnings: list[str] = []
         try:
             source_stat = photo.source.stat()
-            if (
+            if plan.mode == "full" and (
                 source_stat.st_size != item.source_size
                 or source_stat.st_mtime_ns != item.source_mtime_ns
             ):
                 raise WorkflowError("Source changed after preflight")
+            if item.target.exists() or item.target.is_symlink():
+                raise WorkflowError("Output already exists")
             item.target.parent.mkdir(parents=True, exist_ok=True)
             with tempfile.TemporaryDirectory(prefix=".aim-gps-", dir=item.target.parent) as name:
                 scratch = Path(name)
                 artifact = Artifact(photo.source, photo.source, item.source_kind, photo.metadata)
+                source_state = None
+                metadata: dict[str, Any] | None = None
+                if plan.mode == "quick":
+                    if progress is not None:
+                        progress(photo, "Preparing current source")
+                    source_state = file_state(photo.source, signal)
+                    metadata = {}
+
+                def report(message: str, current_photo: PhotoItem = photo) -> None:
+                    if progress is not None:
+                        progress(current_photo, message)
+
+                context = StepContext(
+                    item.target,
+                    signal,
+                    report,
+                    scratch,
+                    photo.coordinates,
+                    photo,
+                    warnings.append,
+                    source_state,
+                    metadata,
+                    frozenset(step.spec.component_id for step in item.steps),
+                )
+                if plan.mode == "quick":
+                    for planned_step in item.steps:
+                        if signal.is_set():
+                            break
+                        current_step = planned_step.spec.component_id
+                        prepare = getattr(planned_step.implementation, "prepare", None)
+                        if prepare is not None:
+                            prepare(photo, planned_step.spec, context)
+                    if not signal.is_set():
+                        context.progress("Prepared current source")
                 for planned_step in item.steps:
                     if signal.is_set():
                         break
                     current_step = planned_step.spec.component_id
 
-                    def report(message: str, current_photo: PhotoItem = photo) -> None:
-                        if progress is not None:
-                            progress(current_photo, message)
-
-                    context = StepContext(
-                        item.target,
-                        signal,
-                        report,
-                        scratch,
-                        photo.coordinates,
-                        photo,
-                        warnings.append,
-                    )
+                    if (
+                        current_step == "export"
+                        and source_state is not None
+                        and file_state(photo.source, signal) != source_state
+                    ):
+                        raise WorkflowError("Source changed during processing")
                     artifact = planned_step.implementation.execute(
                         artifact, planned_step.spec, context
                     )
@@ -275,6 +319,12 @@ def run_plan(
                     warnings=tuple(warnings),
                 )
             )
+        finally:
+            if plan.mode == "quick":
+                for planned_step in item.steps:
+                    release = getattr(planned_step.implementation, "release", None)
+                    if release is not None:
+                        release(photo)
     return tuple(results)
 
 
@@ -304,7 +354,7 @@ def _run_parallel(
         while next_index < len(plan.items) or pending:
             while len(pending) < 2 and next_index < len(plan.items) and not signal.is_set():
                 item = plan.items[next_index]
-                future = pool.submit(run_plan, ExecutionPlan((item,)), signal, progress)
+                future = pool.submit(run_plan, ExecutionPlan((item,), plan.mode), signal, progress)
                 pending[future] = next_index
                 next_index += 1
             if not pending:

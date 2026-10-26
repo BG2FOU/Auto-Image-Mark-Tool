@@ -6,9 +6,12 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 from aim_tool.domain import Artifact, ImageKind, PhotoItem, StepSpec
+from aim_tool.services.file_state import FileState
+
+type PreflightMode = Literal["quick", "full"]
 
 
 @dataclass(frozen=True)
@@ -20,6 +23,9 @@ class StepContext:
     coordinates: tuple[float, float] | None
     photo: PhotoItem | None = None
     warning: Callable[[str], None] = lambda message: None
+    source_state: FileState | None = None
+    source_metadata: dict[str, Any] | None = None
+    component_ids: frozenset[str] = frozenset()
 
 
 type ParameterType = Literal["str", "int", "float", "bool", "null"]

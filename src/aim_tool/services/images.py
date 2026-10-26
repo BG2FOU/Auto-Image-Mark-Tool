@@ -56,6 +56,23 @@ def validate_jpeg(path: Path) -> tuple[int, int]:
         raise ValueError("JPEG exceeds the 60 megapixel watermark limit") from error
 
 
+def inspect_jpeg(path: Path) -> tuple[int, int]:
+    """Read JPEG dimensions and orientation without decoding the pixel stream."""
+    try:
+        with Image.open(path) as image:
+            if image.format != "JPEG":
+                raise ValueError("Watermark preview needs a JPEG input")
+            if image.width * image.height > MAX_JPEG_PIXELS:
+                raise ValueError("JPEG exceeds the 60 megapixel watermark limit")
+            if not image.info.get("icc_profile") and image.mode not in {"RGB", "L"}:
+                raise ValueError("JPEG without ICC has an ambiguous color mode")
+            if image.getexif().get(274) in {5, 6, 7, 8}:
+                return image.height, image.width
+            return image.size
+    except Image.DecompressionBombError as error:
+        raise ValueError("JPEG exceeds the 60 megapixel watermark limit") from error
+
+
 def prepare_jpeg(path: Path) -> PreparedJpeg:
     """Apply EXIF orientation once, then convert an embedded source profile to sRGB."""
     try:

@@ -1,5 +1,9 @@
 # 当前架构下的进一步提速调研
 
+> 实施更新（2026-10-26）：用户已授权按新计划执行并要求按节点提交推送。Q0 测量工具已提交推送，快速预检、逐项执行准备及 NEF 指纹传输优化已实现并进入回归/配对验收；结果见[实施记录](performance-implementation.md)。用户要求先交付新编译 Windows EXE，测试通过后再发布；下文历史“仅调研/未修改代码”不再描述当前阶段。
+
+> 最新结论（2026-10-25）：当前源码已推进至 `b10f463`，I0–I8 的实现/筛选结果见[实施记录](performance-implementation.md)。本文件第 1–8 节为历史调研快照，其中“未实施”“仍有两次签名核验”“必须完整预检”等描述不再代表当前状态。新一轮测量见[第 9 节](#9-2026-10-25-重写预检提速方案的证据)，后续工作以[重写后的提速计划](performance-improvement-plan.md)为准：默认快速预检，完整解码等工作延后至单张执行。本轮仅文档和测量。
+
 调研日期：2026-10-15。源码基准：`1b510b11895912c59a36aa238da468219f59000c`（本地 `main`）。范围是主页面的 JPEG 坐标、水印、组合流程，以及 NEF 坐标流程；本次仅形成调研和隔离原型实验记录，未修改应用源码或启用正式优化。
 
 计划状态更新（2026-10-18）：调研成果已统一列入 [改进计划第 19 节](plan.md#19-性能调研成果改进计划2026-10-15)，新增检查侧 I4a 和分阶段交付条件。第 1–7 节保留 2026-10-15 的历史证据；[第 8 节](#8-2026-10-18-复核检查速度与处理速度)为本次源码复核和补测。后续实施顺序、条件实验和暂缓项以计划为准，应用代码尚未修改。
@@ -276,26 +280,40 @@ import benchmark_pipeline as bench
 mode = "dct"  # "off" / "dct" / "fft"
 base_resources, base_preset = bench._resources, bench.preset
 
+
 def resources(root):
     result = base_resources(root)
     image = Image.new("RGBA", (100, 60))
     ImageDraw.Draw(image).line(
         [(5, 50), (30, 5), (55, 50), (80, 8), (95, 35)],
-        fill="white", width=5,
+        fill="white",
+        width=5,
     )
     image.save(result.signature)
     return result
 
+
 def preset(name):
     workflow = base_preset(name)
-    return replace(workflow, steps=tuple(
-        replace(step, params={**step.params,
-            "digital_enabled": mode != "off",
-            "digital_algorithm": "dct" if mode == "off" else mode,
-            "digital_level": "medium", "digital_key": "ab" * 32,
-        }) if step.component_id == "watermark" else step
-        for step in workflow.steps
-    ))
+    return replace(
+        workflow,
+        steps=tuple(
+            replace(
+                step,
+                params={
+                    **step.params,
+                    "digital_enabled": mode != "off",
+                    "digital_algorithm": "dct" if mode == "off" else mode,
+                    "digital_level": "medium",
+                    "digital_key": "ab" * 32,
+                },
+            )
+            if step.component_id == "watermark"
+            else step
+            for step in workflow.steps
+        ),
+    )
+
 
 bench._resources, bench.preset = resources, preset
 print(bench.measure("location_and_watermark", 3, (5038, 3363)))
@@ -457,3 +475,74 @@ DCT 的 `prepare_jpeg` 约 3.208 s、嵌入约 2.377 s、两次/张核验合计�
 - [ExifTool 常见低效用法](https://exiftool.org/mistakes.html)及[应用文档](https://exiftool.org/exiftool_pod.html)支持批量调用和常驻进程的方向；本轮直接抓取部分页面返回 403，仅通过官方页面搜索摘要复核，不据此断言新的运行参数行为。现有常驻会话、请求次数与锁串行由本地源码和实测确认。
 
 已验证：当前调用链、三流程三轮基准、五个单次诊断场景、锁定库版本及历史原型记录。待实施验证：强摘要检查复用的净收益、失败注入、正式优化回归、进程树内存、真实素材、GUI 端到端和 Windows 原生/冻结包验收。
+
+## 9. 2026-10-25 重写预检提速方案的证据
+
+### 9.1 当前基线与新的判断
+
+本轮核对的是 `codex/performance-check-processing` 的 `b10f463b9afc3a5eef44014a0d9ec8e7fda669b8`。I1 的最终一次完整数字核验、I2/I3 像素及缓冲优化、I4a/I4b 检查缓存与同边界摘要合并、I5 预览缓存、I6 受限双任务、I7 NEF 基线复用均已存在；I8 已筛选暂缓额外缓存与稀疏 FFT。旧调研中这些候选项不能再次作为“尚未实现的主要提速方案”。
+
+剩余的明显启动障碍是全批预检：`build_plan()` 逐张调用 `validate()`，而 `validate_jpeg()` 仍调用 `original.load()` 完整解码。即使 I4a 减少了第二次检查的解码，第一次仍必须等整批完成。此前“完整预检不变”的前提限制了可获得的收益；用户现允许省去不必要预检，因而建议改为**头部与业务条件快速检查＋逐张执行准备**，把完整检查保留为可选模式。
+
+### 9.2 当前 GUI 基准复核
+
+使用未修改的 `scripts/benchmark_pipeline.py`，真实 Qt 入口、offscreen 显示；Python 3.12.3、Pillow 12.3.0、NumPy 2.5.3。每轮 3 张 5038×3363、41,101,655 字节/张的合成 JPEG，sRGB、数字水印关闭；每个入口 3 轮，18 张处理均成功。GUI 使用生产环境的自动并发决策，脚本中的 `workers=1` 字段**不表示强制 GUI 串行**。
+
+| 入口 | 手动检查中位数（范围） | 点击开始到完成（含自动检查） | 累计等待中位数（范围） |
+| --- | --- | --- | --- |
+| 直接开始 | 未单独点击，不适用 | 5.400 s（5.334–5.519） | 5.400 s（5.334–5.519） |
+| 检查后开始 | 1.780 s（1.770–1.900） | 4.420 s（3.867–5.210） | 6.200 s（5.637–7.110） |
+
+两组是当前版本的入口诊断，不是旧版/新版的交替配对 A/B；第二组波动明显，不能据此声称缓存导致回退。导入、初始预览与素材生成在点击计时之外；使用相同内容的硬链接，未清空系统页缓存，不代表物理冷盘、真实照片群或 Windows。
+
+手动检查中的可见子阶段如下。调用时间包含子函数，不能相加。
+
+| 阶段 | 每轮次数 | 三轮累计时间的中位数 | 解释 |
+| --- | --- | --- | --- |
+| `validate_jpeg()` | 3 | 1.362 s | 包含完整 JPEG 解码和 ICC 建立，约占手动检查等待的 77% |
+| `ImageCms.buildTransform()` | 3 | 0.022 s | 已包含于上一行，不能重复计入 |
+| `render_watermark_region()` | 3 | 0.013 s | 本计时绑定捕获到预检侧调用 |
+| `ExifTool._run()` | 4 | 0.223 s | 工具命令总数，不能等同为 4 次照片元数据查询 |
+| `steps._sha256()` | 12 | 0.0004 s | 这里主要是合成小素材，不包含 `file_state()` 的原片摘要 |
+
+直接开始也调用了 3 次 `validate_jpeg()`，累计中位数 1.354 秒，证明自动预检仍存在。检查后开始没有再次记录该函数或 ICC 建立，说明 I4a 已经避免第二轮完整解码；仍需审计缓存复用时的原片摘要成本。
+
+同时采样的进程树 RSS：手动检查峰值约 235.9 MiB，开始至完成峰值约 405.7–406.5 MiB（两入口的三轮中位数）。它包括当前 Qt/ExifTool 等进程和可能的共享页重复计数；25 ms 采样可能漏峰。不同阶段峰值不能相加，主进程生命周期 HWM 也不能当作单张处理内存。
+
+### 9.3 测量工具尚未覆盖的部分
+
+1. GUI `preflight_seconds` 只记录显式手动检查；直接开始时为 0，自动预检包含在 `execution_seconds`。现有字段不足以给出“开始后自动检查”“首项实际执行”“首张成片”的独立时延，列入 Q0。
+2. `Metrics` 包装了 `steps._sha256()`，没有包装 `file_state()`；后者在当前 GUI 缓存路径执行全文件 SHA-256。不能用表中的 0.0004 秒推断全批原片摘要无成本，也不能将未归因剩余时间全部算作哈希。
+3. `images.py` 静态导入了渲染函数；包装 `watermark.render_watermark_region` 不会替换该静态绑定。现有渲染计数不能证明实际处理没有渲染，Q0 要覆盖实际调用边界。
+4. 多线程阶段累计时间可能超过墙钟，GUI 的单张 p50/p95 当前为空；应记录真实并发和每张完成事件，再评估吞吐与尾部等待。
+
+### 9.4 延后检查的可行性与缺口
+
+未改应用代码的临时探针生成正常 JPEG、截断 JPEG、坏 ICC、无 ICC CMYK 四种样本，分别调用头部打开、当前完整预检和当前实际准备函数。
+
+| 合成样本 | 仅打开头部 | 当前 `validate_jpeg()` | 当前 `prepare_jpeg()` |
+| --- | --- | --- | --- |
+| 正常 JPEG | 接受 | 接受 | 接受 |
+| 截断 JPEG | 接受 | 拒绝：OSError | 拒绝：OSError |
+| 损坏 ICC | 接受 | 拒绝：ValueError | 拒绝：ValueError |
+| 无 ICC CMYK | 接受 | 拒绝：ValueError | 拒绝：ValueError |
+
+证据支持在真实处理时发现这些错误，但只覆盖四个诊断样本，不证明新快检工作流已实现。快速头部检查仍可直接拒绝无 ICC 歧义模式；无需等到像素转换才判断这一廉价条件。[Pillow Image 官方文档](https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.open)说明 `open()` 延迟读取像素；[ImageOps 官方源码](https://pillow.readthedocs.io/en/stable/_modules/PIL/ImageOps.html#exif_transpose)和本机 12.3.0 实现均表明 `exif_transpose()` 会加载图像，不能误用于轻量检查。官网 stable 为 13.0.0，本轮没有升级依赖。
+
+迁移的实际缺口由源码确认：`WatermarkStep.execute()` 需要 `_PreparedWatermark`；内存预算同样依赖预检尺寸；辅助 GPS 许可只在 `LocationStep.validate()` 判断，`write_gps()` 会清空原 GPS；组合流程只在写入后的副本检查 GPS 会改变原片不完整 GPS 的拒绝行为；NEF 无缓存回退还需要保持完整基线的源内容绑定。因此计划安排先拆执行准备契约，再省预检，不能只删除 `load()`、清空 `validate()` 或关闭所有检查。
+
+### 9.5 后续优先级与复现
+
+后续按[提速计划 Q0–Q5](performance-improvement-plan.md#5-按依赖推进的执行清单)推进：先补分阶段观测，再完成 JPEG 快速预检与 GUI，NEF 延后基线独立跟进，处理期元数据/资源复用按测得的热点决定。完整版保留给需要整批提前排错的场景；默认快检允许部分照片先完成，再发现后续坏图。
+
+```bash
+QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/benchmark_pipeline.py \
+  --flow watermark_only --entry gui-start --count 3 --rounds 3 --digital off \
+  --report build/performance/research-20261025/current-gui-start-off.json
+
+QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/benchmark_pipeline.py \
+  --flow watermark_only --entry gui-check-start --count 3 --rounds 3 --digital off \
+  --report build/performance/research-20261025/current-gui-check-start-off.json
+```
+
+报告、临时探针结果 `deferred-check-probe.json` 与本轮代码摘要清单保存在本地忽略目录 `build/performance/research-20261025/`。只公开聚合结果；未使用私人样片或公开其路径/摘要/GPS。已有工作区版本号、构建文档及 Linux demo 改动不属于本轮；本轮没有修改应用/测试/基准脚本、安装依赖、构建、提交、推送或发布。新的快速预检效果与完整矩阵仍待实施验证。

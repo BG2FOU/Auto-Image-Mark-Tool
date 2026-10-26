@@ -90,12 +90,14 @@ def setup(
 
 @pytest.mark.parametrize("algorithm", ["dct", "fft"])
 @pytest.mark.parametrize("level", ["low", "medium", "high"])
+@pytest.mark.parametrize("mode", ["full", "quick"])
 def test_all_six_choices_recover_after_metadata_and_keep_source(
     tmp_path: Path,
     tool: ExifTool,
     synthetic_watermark_resources: WatermarkResources,
     algorithm: str,
     level: str,
+    mode: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     job, registry, resources = setup(
@@ -113,7 +115,7 @@ def test_all_six_choices_recover_after_metadata_and_keep_source(
         return original_verify(path, *args, **kwargs)
 
     monkeypatch.setattr(frequency, "verify_signature", verify_after_metadata)
-    result = run_plan(build_plan(job, registry))[0]
+    result = run_plan(build_plan(job, registry, mode=mode))[0]
     assert len(verified) == 1
     assert result.status == ItemStatus.SUCCESS, result.error
     assert result.output is not None
@@ -139,17 +141,19 @@ def test_all_six_choices_recover_after_metadata_and_keep_source(
 
 
 @pytest.mark.parametrize("damage", ["pixels", "jpeg", "cancel", "metadata"])
+@pytest.mark.parametrize("mode", ["full", "quick"])
 def test_final_gate_rejects_post_metadata_damage_or_cancellation(
     tmp_path: Path,
     tool: ExifTool,
     synthetic_watermark_resources: WatermarkResources,
     monkeypatch: pytest.MonkeyPatch,
     damage: str,
+    mode: str,
 ) -> None:
     from aim_tool.services import metadata
 
     job, registry, _ = setup(tmp_path, tool, synthetic_watermark_resources, "dct", "medium")
-    plan = build_plan(job, registry)
+    plan = build_plan(job, registry, mode=mode)
     stop = Event()
     original = metadata.preserve_watermark_metadata
 

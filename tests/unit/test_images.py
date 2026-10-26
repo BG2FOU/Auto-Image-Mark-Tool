@@ -8,7 +8,36 @@ from random import Random
 import pytest
 from PIL import Image, ImageCms, ImageOps
 
-from aim_tool.services.images import prepare_jpeg, validate_jpeg
+from aim_tool.services.images import inspect_jpeg, prepare_jpeg, validate_jpeg
+
+
+@pytest.mark.parametrize("orientation", range(1, 9))
+def test_header_inspection_does_not_decode_pixels_or_build_icc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, orientation: int
+) -> None:
+    source = tmp_path / "header.jpg"
+    exif = Image.Exif()
+    exif[274] = orientation
+    Image.new("RGB", (80, 40)).save(source, exif=exif, icc_profile=b"broken ICC")
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Header inspection must not load pixels or build ICC transforms")
+
+    monkeypatch.setattr(Image.Image, "load", forbidden)
+    monkeypatch.setattr(ImageCms, "buildTransform", forbidden)
+    assert inspect_jpeg(source) == ((40, 80) if orientation >= 5 else (80, 40))
+
+
+def test_header_inspection_retains_pixel_limit_and_color_mode_rejection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "header.jpg"
+    Image.new("CMYK", (24, 16)).save(source)
+    with pytest.raises(ValueError, match="ambiguous color mode"):
+        inspect_jpeg(source)
+    monkeypatch.setattr("aim_tool.services.images.MAX_JPEG_PIXELS", 100)
+    with pytest.raises(ValueError, match="megapixel"):
+        inspect_jpeg(source)
 
 
 @pytest.mark.parametrize("orientation", range(1, 9))

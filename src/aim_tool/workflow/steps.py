@@ -8,6 +8,7 @@ import shutil
 from collections import OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
+from datetime import date
 from pathlib import Path
 from threading import Event
 from types import MappingProxyType
@@ -16,6 +17,7 @@ from uuid import UUID
 
 from aim_tool.domain import Artifact, ImageKind, PhotoItem, StepSpec
 from aim_tool.domain.dates import resolve_capture_date
+from aim_tool.domain.validation import validate_altitude
 from aim_tool.services.exiftool import ExifTool, validate_coordinates
 from aim_tool.services.file_state import FileState, file_state
 from aim_tool.services.nef_gps import NefFingerprint, fingerprint_nef
@@ -123,6 +125,41 @@ class LocationStep:
                 evicted, _ = self._nef_cached.popitem(last=False)
                 self._nef_prepared[evicted] = replace(self._nef_prepared[evicted], fingerprint=None)
 
+    def quick_validate(self, item: PhotoItem, spec: StepSpec) -> None:
+        """Validate user choices without reading RAW data or source metadata."""
+        if item.coordinates is None:
+            raise ValueError(f"Missing WGS84 coordinates: {item.source.name}")
+        validate_coordinates(*item.coordinates)
+        validate_altitude(item.altitude)
+        if item.source.suffix.lower() == ".nef" and not self.allow_nef_after_viewer_check:
+            raise ValueError("NEF GPS output needs independent Nikon viewer approval")
+
+    def prepare(self, item: PhotoItem, spec: StepSpec, context: StepContext) -> None:
+        """Bind a complete baseline to the source for this item, just before processing."""
+        self.quick_validate(item, spec)
+        if context.source_state is None:
+            raise ValueError("Location preparation needs a current source snapshot")
+        if item.source.suffix.lower() == ".nef":
+            self._nef_prepared[item.id] = _PreparedNef(
+                item, context.source_state, fingerprint_nef(self.tool, item.source)
+            )
+        watermark = "watermark" in context.component_ids
+        if watermark or not self.clear_auxiliary_gps:
+            tags = ("-ExifIFD:DateTimeOriginal", "-ExifIFD:CreateDate") if watermark else ()
+            metadata = self.tool.metadata(item.source, *tags, "-gps:all")
+            if context.source_metadata is not None:
+                context.source_metadata.update(metadata)
+            if not self.clear_auxiliary_gps and self.tool.has_auxiliary_gps(
+                item.source, metadata=metadata
+            ):
+                raise ValueError("Existing auxiliary GPS tags require explicit clearance")
+            if watermark:
+                self.tool.gps_from_metadata(metadata)
+
+    def release(self, item: PhotoItem) -> None:
+        self._nef_prepared.pop(item.id, None)
+        self._nef_cached.pop(item.id, None)
+
     def execute(self, artifact: Artifact, spec: StepSpec, context: StepContext) -> Artifact:
         if artifact.path != artifact.source:
             raise ValueError("Location step must start from the original source")
@@ -135,7 +172,12 @@ class LocationStep:
             else None
         )
         raw_before: NefFingerprint | None
-        if prepared is not None and prepared.photo == context.photo:
+        if context.source_state is not None:
+            before = context.source_state.digest
+            raw_before = prepared.fingerprint if prepared is not None else None
+            if artifact.kind == ImageKind.NEF and raw_before is None:
+                raise ValueError("NEF execution requires its complete current baseline")
+        elif prepared is not None and prepared.photo == context.photo:
             state = file_state(artifact.source, context.cancelled)
             if state != prepared.state:
                 raise OSError("NEF source changed after preflight")
@@ -160,7 +202,7 @@ class LocationStep:
             raw_before
         ):
             raise ValueError("RAW, previews or camera metadata changed during GPS update")
-        if _sha256(artifact.source) != before:
+        if context.source_state is None and _sha256(artifact.source) != before:
             raise OSError("Source changed during GPS update")
         updated = dict(artifact.metadata)
         updated["GPSLatitude"] = str(latitude)
@@ -222,6 +264,14 @@ class _PreparedWatermark:
     asset_hashes: tuple[tuple[Path, str], ...]
     size: tuple[int, int]
     source_state: FileState | None = None
+
+
+@dataclass(frozen=True)
+class _QuickWatermark:
+    photo: PhotoItem
+    spec: StepSpec
+    size: tuple[int, int]
+    asset_hashes: tuple[tuple[Path, str], ...]
 
 
 class WatermarkPreflightCache:
@@ -315,6 +365,10 @@ class WatermarkStep:
         self.tool = tool
         self.resources = resources
         self._prepared: dict[UUID, _PreparedWatermark] = {}
+        self._quick: dict[UUID, _QuickWatermark] = {}
+        self._resource_hashes: dict[Path, str] = {}
+        self._font_characters: dict[tuple[Path, int], set[str]] = {}
+        self._signatures: set[Path] = set()
         self._preflight_cache = preflight_cache
         self._preflight_metadata = preflight_metadata
         self._preflight_states = preflight_states
@@ -382,6 +436,7 @@ class WatermarkStep:
         return self._config(photo, spec)
 
     def validate(self, item: PhotoItem, spec: StepSpec) -> None:
+        self._quick.pop(item.id, None)
         if item.source.suffix.lower() == ".nef":
             raise ValueError("NEF watermark processing is deferred; select coordinates only")
         from aim_tool.services.images import validate_jpeg
@@ -443,8 +498,95 @@ class WatermarkStep:
             self._preflight_cache.remember(state, prepared, self.resources)
         self._prepared[item.id] = prepared
 
+    def quick_validate(self, item: PhotoItem, spec: StepSpec) -> None:
+        """Check headers, static parameters and shared assets, without decoding photos."""
+        from aim_tool.services.fonts import load_checked_font
+        from aim_tool.services.images import inspect_jpeg
+        from aim_tool.services.watermark import _scaled_signature, watermark_scale
+
+        if item.source.suffix.lower() == ".nef":
+            raise ValueError("NEF watermark processing is deferred; select coordinates only")
+        size = inspect_jpeg(item.source)
+        # This date is used only to validate static fields; execution resolves the real date.
+        static_item = replace(item, taken_on=item.taken_on or date(2000, 1, 1))
+        config, _ = self._config(static_item, spec, metadata={})
+        watermark_scale(size, config)
+        quality = spec.params.get("jpeg_quality", 95)
+        subsampling = spec.params.get("jpeg_subsampling", 0)
+        if type(quality) is not int or not 1 <= quality <= 100:
+            raise ValueError("JPEG quality must be an integer from 1 to 100")
+        if type(subsampling) is not int or subsampling not in {0, 1, 2}:
+            raise ValueError("JPEG subsampling must be 0, 1 or 2")
+        text = f"{config.content}|0123456789/ © "
+        chinese = (
+            "".join(character for character in config.content if not character.isascii())
+            if config.category == "landscape"
+            else ""
+        )
+        fonts = [
+            (
+                self.resources.latin_font,
+                self.resources.latin_face,
+                text
+                if not chinese
+                else "".join(
+                    character for character in text if character.isascii() or character == "©"
+                ),
+            )
+        ]
+        if chinese:
+            fonts.append((self.resources.chinese_font, self.resources.chinese_face, chinese))
+        paths = [path for path, _, _ in fonts] + [self.resources.signature]
+        for path in dict.fromkeys(paths):
+            if path not in self._resource_hashes:
+                self._resource_hashes[path] = _sha256(path)
+        for path, face, characters in fonts:
+            known = self._font_characters.setdefault((path, face), set())
+            missing = set(characters) - known
+            if missing:
+                load_checked_font(path, face, "".join(sorted(missing)), 12)
+                known.update(missing)
+        if self.resources.signature not in self._signatures:
+            _scaled_signature(self.resources.signature, 1, 1.0).close()
+            self._signatures.add(self.resources.signature)
+        if config.digital is not None:
+            from aim_tool.services.frequency_watermark import signature_spec
+
+            signature_spec(size, config.digital, self.resources.signature)
+        self._prepared.pop(item.id, None)
+        self._quick[item.id] = _QuickWatermark(
+            item,
+            spec,
+            size,
+            tuple((path, self._resource_hashes[path]) for path in dict.fromkeys(paths)),
+        )
+
+    def prepare(self, item: PhotoItem, spec: StepSpec, context: StepContext) -> None:
+        from aim_tool.services.images import inspect_jpeg
+
+        quick = self._quick.get(item.id)
+        if quick is None or quick.photo != item or quick.spec != spec:
+            raise ValueError("Watermark configuration differs from quick preflight")
+        if inspect_jpeg(item.source) != quick.size:
+            raise ValueError("JPEG dimensions changed after preflight; check the batch again")
+        metadata = context.source_metadata
+        if not metadata:
+            metadata = self.tool.metadata(
+                item.source, "-ExifIFD:DateTimeOriginal", "-ExifIFD:CreateDate", "-GPS:all"
+            )
+            if context.source_metadata is not None:
+                context.source_metadata.update(metadata)
+        self.tool.gps_from_metadata(metadata)
+        config, date_source = self._config(item, spec, metadata=metadata)
+        self._prepared[item.id] = _PreparedWatermark(
+            item, spec, config, date_source, quick.asset_hashes, quick.size, context.source_state
+        )
+
+    def release(self, item: PhotoItem) -> None:
+        self._prepared.pop(item.id, None)
+
     def working_memory_bytes(self, photo: PhotoItem) -> int | None:
-        prepared = self._prepared.get(photo.id)
+        prepared = self._quick.get(photo.id) or self._prepared.get(photo.id)
         if prepared is None or prepared.photo != photo:
             return None
         width, height = prepared.size
@@ -467,7 +609,9 @@ class WatermarkStep:
         for path, digest in prepared.asset_hashes:
             if _sha256(path) != digest:
                 raise ValueError("Watermark asset changed after preflight")
-        if prepared.source_state is not None:
+        if context.source_state is not None:
+            original_hash = context.source_state.digest
+        elif prepared.source_state is not None:
             current = file_state(artifact.source, context.cancelled)
             if current != prepared.source_state:
                 raise OSError("Source changed after preflight")
@@ -501,12 +645,16 @@ class WatermarkStep:
                 self.resources.signature,
                 cancelled=context.cancelled,
             )
-        final_hashes = {
-            path: _sha256(path) for path in dict.fromkeys((artifact.source, artifact.path))
-        }
+        if context.source_state is None:
+            final_paths = tuple(dict.fromkeys((artifact.source, artifact.path)))
+        elif artifact.path != artifact.source:
+            final_paths = (artifact.path,)
+        else:
+            final_paths = ()  # The engine checks the complete source snapshot before export.
+        final_hashes = {path: _sha256(path) for path in final_paths}
         if (
-            final_hashes[artifact.source] != original_hash
-            or final_hashes[artifact.path] != authority_hash
+            final_hashes.get(artifact.source, original_hash) != original_hash
+            or final_hashes.get(artifact.path, authority_hash) != authority_hash
         ):
             raise OSError("Source or current artifact changed during watermark export")
         if any(_sha256(path) != digest for path, digest in prepared.asset_hashes):
