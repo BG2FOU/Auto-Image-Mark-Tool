@@ -7,6 +7,7 @@ import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
+from typing import Literal
 from uuid import UUID
 
 from PySide6.QtCore import QSignalBlocker, Qt, QTimer
@@ -287,6 +288,13 @@ class MainWindow(QMainWindow):
         self.output_edit.setPlaceholderText("选择与原片目录不同的输出文件夹")
         self.output_button = QPushButton("浏览")
         self.output_button.clicked.connect(self._pick_output)
+        self.preflight_mode = QComboBox()
+        self.preflight_mode.addItem("快速检查", "quick")
+        self.preflight_mode.addItem("完整检查", "full")
+        self.preflight_mode.setAccessibleName("检查模式")
+        self.preflight_mode.setToolTip(
+            "快速检查后即可开始，文件完整性在逐张处理时检查；完整检查先检查整批。"
+        )
         self.check_button = QPushButton("检查批次")
         self.start_button = QPushButton("开始处理")
         self.start_button.setObjectName("primary")
@@ -304,6 +312,7 @@ class MainWindow(QMainWindow):
         output_row = QHBoxLayout()
         output_row.addWidget(QLabel("输出目录"))
         output_row.addWidget(self.output_edit, 1)
+        output_row.addWidget(self.preflight_mode)
         for button in (
             self.output_button,
             self.check_button,
@@ -759,14 +768,19 @@ class MainWindow(QMainWindow):
         self._execute_after_check = execute
         self._set_busy(True)
         self.progress.setRange(0, 0)
-        self._message(f"正在预检 {len(photos)} 张照片…")
+        mode: Literal["quick", "full"] = (
+            "full" if self.preflight_mode.currentData() == "full" else "quick"
+        )
+        label = "基本检查" if mode == "quick" else "完整检查"
+        self._message(f"正在{label} {len(photos)} 张照片…")
         worker = PreflightWorker(
             job,
             self.settings,
             self,
             clear_auxiliary_gps=self.clear_auxiliary.isChecked(),
             allow_nef_after_viewer_check=self.allow_nef_after_viewer_check,
-            preflight_cache=self._preflight_cache,
+            preflight_cache=self._preflight_cache if mode == "full" else None,
+            mode=mode,
         )
         self._preflight_worker = worker
         worker.item_error.connect(self.model.preflight_error)
@@ -788,7 +802,10 @@ class MainWindow(QMainWindow):
         self.last_plan = plan
         self.progress.setRange(0, len(plan.items))
         self.progress.setValue(0)
-        self._message(f"检查通过：{len(plan.items)} 张照片；原片保持不变。")
+        if plan.mode == "quick":
+            self._message(f"基本检查通过：{len(plan.items)} 张照片；文件完整性将在逐张处理时检查。")
+        else:
+            self._message(f"完整检查通过：{len(plan.items)} 张照片；原片保持不变。")
         if self._execute_after_check:
             self.results = ()
             self.report_button.setEnabled(False)
@@ -853,6 +870,7 @@ class MainWindow(QMainWindow):
             self.coordinates_card,
             self.output_edit,
             self.output_button,
+            self.preflight_mode,
             self.check_button,
             self.start_button,
             self.settings_button,

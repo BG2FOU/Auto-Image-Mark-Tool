@@ -82,6 +82,7 @@ def test_check_then_start_reuses_only_validated_pixels(
     monkeypatch.setattr(images, "validate_jpeg", counted)
     window = _window(qtbot, tmp_path, synthetic_watermark_resources)
     try:
+        window.preflight_mode.setCurrentIndex(window.preflight_mode.findData("full"))
         window.add_photos((source,))
         window.workflow.presets.setCurrentIndex(2)
         window.bulk_subject.setText("B-1356")
@@ -92,6 +93,8 @@ def test_check_then_start_reuses_only_validated_pixels(
         window.check_button.click()
         qtbot.waitUntil(lambda: not window._busy, timeout=20000)
         assert window.last_plan is not None and calls == 1
+        assert window.last_plan.mode == "full"
+        assert "完整检查通过" in window.status.text()
         window.start_button.click()
         qtbot.waitUntil(lambda: not window._busy, timeout=20000)
         assert calls == 1
@@ -100,12 +103,114 @@ def test_check_then_start_reuses_only_validated_pixels(
         _close(qtbot, window)
 
 
+def test_default_quick_check_defers_full_validation_and_start_keeps_mode(
+    qtbot: QtBot,
+    tmp_path: Path,
+    synthetic_watermark_resources: WatermarkResources,
+    tool: ExifTool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from aim_tool.services import images
+
+    source = tmp_path / "input/a.jpg"
+    _photo(source)
+    calls = 0
+    original = images.validate_jpeg
+
+    def counted(path: Path) -> tuple[int, int]:
+        nonlocal calls
+        calls += 1
+        return original(path)
+
+    monkeypatch.setattr(images, "validate_jpeg", counted)
+    window = _window(qtbot, tmp_path, synthetic_watermark_resources)
+    try:
+        assert window.preflight_mode.currentData() == "quick"
+        assert window.preflight_mode.accessibleName() == "检查模式"
+        window.add_photos((source,))
+        window.workflow.presets.setCurrentIndex(window.workflow.presets.findData("watermark"))
+        window.bulk_subject.setText("B-1356")
+        window.apply_fields_button.click()
+        window.output_edit.setText(str(tmp_path / "out"))
+        qtbot.waitUntil(lambda: not window.has_active_workers, timeout=20000)
+        window.check_button.click()
+        assert not window.preflight_mode.isEnabled()
+        assert window._preflight_worker is not None
+        assert window._preflight_worker.preflight_cache is None
+        qtbot.waitUntil(lambda: not window._busy, timeout=20000)
+        assert window.last_plan is not None and window.last_plan.mode == "quick"
+        assert calls == 0
+        assert "基本检查通过" in window.status.text()
+        assert "逐张处理时检查" in window.status.text()
+        assert not (tmp_path / "out").exists()
+        window.start_button.click()
+        qtbot.waitUntil(lambda: not window._busy, timeout=20000)
+        assert window.last_plan is not None and window.last_plan.mode == "quick"
+        assert window.results[0].status == ItemStatus.SUCCESS, window.log.toPlainText()
+        assert window.preflight_mode.isEnabled()
+    finally:
+        _close(qtbot, window)
+
+
+@pytest.mark.parametrize("mode", ["quick", "full"])
+def test_check_mode_controls_when_bad_icc_is_reported(
+    qtbot: QtBot,
+    tmp_path: Path,
+    synthetic_watermark_resources: WatermarkResources,
+    tool: ExifTool,
+    mode: str,
+) -> None:
+    sources = tuple(tmp_path / "input" / name for name in ("a.jpg", "bad.jpg", "c.jpg"))
+    for source in sources:
+        _photo(source)
+    with Image.open(sources[1]) as image:
+        exif = image.getexif()
+    Image.new("RGB", (1007, 672), (30, 50, 70)).save(
+        sources[1], exif=exif, icc_profile=b"invalid profile"
+    )
+    before = tuple(sha256(source.read_bytes()).digest() for source in sources)
+    window = _window(qtbot, tmp_path, synthetic_watermark_resources)
+    try:
+        window.preflight_mode.setCurrentIndex(window.preflight_mode.findData(mode))
+        window.add_photos(sources)
+        window.workflow.presets.setCurrentIndex(window.workflow.presets.findData("watermark"))
+        window.bulk_subject.setText("B-1356")
+        window.apply_fields_button.click()
+        window.output_edit.setText(str(tmp_path / "out"))
+        qtbot.waitUntil(lambda: not window.has_active_workers, timeout=20000)
+        window.check_button.click()
+        qtbot.waitUntil(lambda: not window._busy, timeout=20000)
+        if mode == "full":
+            assert window.last_plan is None
+            assert not window.results
+            assert window.model.rows[1].status == "检查失败"
+            assert "bad.jpg" in window.log.toPlainText()
+            assert not (tmp_path / "out").exists()
+            return
+        assert window.last_plan is not None and len(window.last_plan.items) == 3
+        window.start_button.click()
+        qtbot.waitUntil(lambda: not window._busy, timeout=30000)
+        assert [result.status for result in window.results] == [
+            ItemStatus.SUCCESS,
+            ItemStatus.FAILED,
+            ItemStatus.SUCCESS,
+        ], window.log.toPlainText()
+        assert "bad.jpg" in window.log.toPlainText()
+        assert not (tmp_path / "out/bad_marked.jpg").exists()
+        assert not list((tmp_path / "out").glob(".aim-*"))
+        assert tuple(sha256(source.read_bytes()).digest() for source in sources) == before
+    finally:
+        _close(qtbot, window)
+
+
+@pytest.mark.parametrize("mode", ["quick", "full"])
 def test_close_drains_both_active_batch_tasks_without_committing(
     qtbot: QtBot,
     tmp_path: Path,
     synthetic_watermark_resources: WatermarkResources,
     tool: ExifTool,
     monkeypatch: pytest.MonkeyPatch,
+    mode: str,
 ) -> None:
     from aim_tool.services import images
     from aim_tool.ui import workers
@@ -126,6 +231,7 @@ def test_close_drains_both_active_batch_tasks_without_committing(
     monkeypatch.setattr(images, "_encode_watermark_jpeg", held)
     window = _window(qtbot, tmp_path, synthetic_watermark_resources)
     try:
+        window.preflight_mode.setCurrentIndex(window.preflight_mode.findData(mode))
         window.add_photos(sources)
         window.workflow.presets.setCurrentIndex(2)
         window.bulk_subject.setText("B-1356")
@@ -242,12 +348,14 @@ def test_bad_row_blocks_whole_batch_and_identifies_photo(
         _close(qtbot, window)
 
 
+@pytest.mark.parametrize("mode", ["quick", "full"])
 def test_close_waits_for_cancelled_preflight_without_output(
     qtbot: QtBot,
     tmp_path: Path,
     synthetic_watermark_resources: WatermarkResources,
     tool: ExifTool,
     monkeypatch: pytest.MonkeyPatch,
+    mode: str,
 ) -> None:
     source = tmp_path / "input/a.jpg"
     _photo(source)
@@ -257,8 +365,11 @@ def test_close_waits_for_cancelled_preflight_without_output(
         started.set()
         assert release.wait(10)
 
-    monkeypatch.setattr(WatermarkStep, "validate", slow_validate)
+    monkeypatch.setattr(
+        WatermarkStep, "quick_validate" if mode == "quick" else "validate", slow_validate
+    )
     window = _window(qtbot, tmp_path, synthetic_watermark_resources)
+    window.preflight_mode.setCurrentIndex(window.preflight_mode.findData(mode))
     window.workflow.presets.setCurrentIndex(window.workflow.presets.findData("watermark"))
     window.add_photos((source,))
     window.output_edit.setText(str(tmp_path / "out"))

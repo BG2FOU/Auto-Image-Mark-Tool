@@ -6,6 +6,7 @@ from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
+from typing import Literal
 
 from PIL import Image
 from PySide6.QtCore import QThread, Signal
@@ -98,11 +99,13 @@ class PreflightWorker(QThread):
         clear_auxiliary_gps: bool = False,
         allow_nef_after_viewer_check: bool = False,
         preflight_cache: WatermarkPreflightCache | None = None,
+        mode: Literal["quick", "full"] = "quick",
     ) -> None:
         super().__init__(parent)
         self.clear_auxiliary_gps = clear_auxiliary_gps
         self.allow_nef_after_viewer_check = allow_nef_after_viewer_check
-        self.preflight_cache = preflight_cache
+        self.mode = mode
+        self.preflight_cache = preflight_cache if mode == "full" else None
         self.job = job
         self.settings = settings
         self.cancelled = Event()
@@ -139,7 +142,7 @@ class PreflightWorker(QThread):
                     )
                 )
                 registry.register(ExportStep())
-                plan = build_plan(self.job, registry, cancelled=self.cancelled)
+                plan = build_plan(self.job, registry, cancelled=self.cancelled, mode=self.mode)
             if self.cancelled.is_set() and self.preflight_cache is not None:
                 self.preflight_cache.clear()
             if not self.cancelled.is_set():
