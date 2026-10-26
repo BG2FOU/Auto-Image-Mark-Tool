@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import shutil
 from hashlib import sha256
 from io import BytesIO
@@ -170,7 +171,56 @@ def test_nikon_nef_diagnostic_copy_preserves_raw_and_preview_pixels(
 
 @pytest.mark.raw
 @pytest.mark.parametrize("sample", ("DSC_0168.NEF", "DSC_0038.NEF"))
+@pytest.mark.parametrize("persistent", (False, True))
+def test_nef_compact_preview_hashes_match_complete_legacy_extraction(
+    pytestconfig: pytest.Config, sample: str, persistent: bool
+) -> None:
+    from aim_tool.services.nef_gps import RELOCATABLE, fingerprint_nef, raw_diagnostics
+
+    source = _sample(ROOT / "data" / sample, pytestconfig)
+    fields = (
+        "-G1:4",
+        "-FileType",
+        "-EXIF:all",
+        "-MakerNotes:all",
+        "-XMP:all",
+        "-IPTC:all",
+        "-ICC_Profile:all",
+        "--GPS:all",
+    )
+    with ExifTool(persistent=persistent) as adapter:
+        metadata = adapter.metadata(source, *fields)
+        images = adapter.metadata(
+            source, "-G1:4", "-b", "-api", "ImageHashType=SHA256", "-ImageDataHash", "-preview:all"
+        )
+        image_hash = images.pop("File:ImageDataHash")
+        images.pop("SourceFile", None)
+        previews = {
+            key: sha256(
+                base64.b64decode(value[7:], validate=True)
+                if value.startswith("base64:")
+                else value.encode()
+            ).hexdigest()
+            for key, value in images.items()
+        }
+        diagnostics = raw_diagnostics(adapter, source)
+        actual = fingerprint_nef(adapter, source)
+        assert actual.image_hash == image_hash
+        assert actual.previews == previews
+        assert actual.diagnostics == diagnostics
+        assert {
+            key: value
+            for key, value in metadata.items()
+            if key != "SourceFile" and key.split(":")[-1] not in RELOCATABLE
+        }.items() <= actual.metadata.items()
+        # Per-request hashing/PrintConv must not affect later ordinary metadata.
+        assert adapter.metadata(source, *fields) == metadata
+
+
+@pytest.mark.raw
+@pytest.mark.parametrize("sample", ("DSC_0168.NEF", "DSC_0038.NEF"))
 @pytest.mark.parametrize("cache_baseline", [True, False])
+@pytest.mark.parametrize("mode", ("full", "quick"))
 def test_nikon_nef_transactional_batch_preserves_format_and_payloads(
     tmp_path: Path,
     tool: ExifTool,
@@ -178,6 +228,7 @@ def test_nikon_nef_transactional_batch_preserves_format_and_payloads(
     sample: str,
     monkeypatch: pytest.MonkeyPatch,
     cache_baseline: bool,
+    mode: str,
 ) -> None:
     from aim_tool.services.nef_gps import fingerprint_nef
     from aim_tool.workflow import steps
@@ -196,14 +247,16 @@ def test_nikon_nef_transactional_batch_preserves_format_and_payloads(
         monkeypatch.setattr(steps, "_NEF_BASELINE_BYTES", 0)
     item = PhotoItem(source, source.parent, coordinates=(-24.123456, -118.654321), altitude=-12.5)
     output = tmp_path / "output"
-    (result,) = run_plan(
-        build_plan(
-            BatchJob((item,), preset("location_only"), output),
-            _registry(tool, clear_auxiliary=True, allow_nef=True),
-        )
-    )
+    registry = _registry(tool, clear_auxiliary=True, allow_nef=True)
+    plan = build_plan(BatchJob((item,), preset("location_only"), output), registry, mode=mode)
+    assert len(fingerprint_calls) == (0 if mode == "quick" else 1)
+    (result,) = run_plan(plan)
     assert result.output == output / source.name, result.error
-    assert len(fingerprint_calls) == (2 if cache_baseline else 3)
+    assert len(fingerprint_calls) == (2 if mode == "quick" or cache_baseline else 3)
+    location = registry.get("location")
+    assert isinstance(location, LocationStep)
+    if mode == "quick":
+        assert location._nef_prepared == {} and location._nef_cached == {}
     assert fingerprint_nef(tool, result.output).preserved_from(before)
     gps = tool.read_gps(result.output)
     assert gps is not None
@@ -223,6 +276,46 @@ def test_nikon_nef_transactional_batch_preserves_format_and_payloads(
     assert sha256(source.read_bytes()).digest() == source_hash
     assert not list(output.glob("*.jpg"))
     assert not list(output.glob(".aim-*"))
+
+
+@pytest.mark.raw
+def test_quick_nef_source_change_during_baseline_is_not_committed(
+    tmp_path: Path, tool: ExifTool, pytestconfig: pytest.Config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from aim_tool.services.nef_gps import fingerprint_nef
+    from aim_tool.workflow import steps
+
+    sample = _sample(ROOT / "data/DSC_0168.NEF", pytestconfig)
+    sample_hash = sha256(sample.read_bytes()).digest()
+    source = tmp_path / "copy.NEF"
+    shutil.copyfile(sample, source)
+    item = PhotoItem(source, tmp_path, coordinates=(24.2, 118.4))
+    output = tmp_path / "output"
+    registry = _registry(tool, clear_auxiliary=True, allow_nef=True)
+    calls = []
+
+    def mutate_after_fingerprint(adapter, path):
+        calls.append(path)
+        before = fingerprint_nef(adapter, path)
+        if path == source:
+            with source.open("r+b") as stream:
+                stream.seek(-1, 2)
+                byte = stream.read(1)
+                stream.seek(-1, 2)
+                stream.write(bytes([byte[0] ^ 1]))
+        return before
+
+    monkeypatch.setattr(steps, "fingerprint_nef", mutate_after_fingerprint)
+    plan = build_plan(BatchJob((item,), preset("location_only"), output), registry, mode="quick")
+    assert calls == []
+    (result,) = run_plan(plan)
+    assert result.output is None and "Source copy changed" in (result.error or "")
+    assert calls == [source]
+    location = registry.get("location")
+    assert isinstance(location, LocationStep)
+    assert location._nef_prepared == {} and location._nef_cached == {}
+    assert not list(output.glob("*"))
+    assert sha256(sample.read_bytes()).digest() == sample_hash
 
 
 @pytest.mark.raw

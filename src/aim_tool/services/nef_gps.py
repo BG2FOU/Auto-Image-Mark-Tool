@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import re
 from dataclasses import dataclass
@@ -29,6 +28,29 @@ RELOCATABLE = frozenset(
         "RawImageStart",
     }
 )
+
+_PREVIEW_HASH_FILTER = "require Digest::SHA; $_=Digest::SHA::sha256_hex($_)"
+
+
+def _metadata_diagnostics(metadata: dict[str, Any]) -> frozenset[str]:
+    """Keep every duplicate diagnostic from a family-4-qualified JSON record."""
+    counts = metadata.get("ExifTool:Validate")
+    if not isinstance(counts, str) or re.fullmatch(r"[0-9]+ [0-9]+ [0-9]+", counts) is None:
+        raise ValueError("RAW metadata diagnostics cannot be verified")
+    if int(counts.split()[0]):
+        raise ValueError("RAW metadata validation failed")
+    diagnostics = set()
+    for key, value in metadata.items():
+        kind = key.split(":")[-1]
+        if not key.startswith("ExifTool:") or kind not in {"Warning", "Error"}:
+            continue
+        if not isinstance(value, str):
+            raise TypeError("RAW metadata diagnostics cannot be verified")
+        # Match the legacy -s text representation, including its alignment.
+        diagnostics.add(f"{kind:<32}: {value}".strip())
+    if any(line.startswith("Error") for line in diagnostics):
+        raise ValueError("RAW metadata validation failed")
+    return frozenset(diagnostics)
 
 
 def raw_diagnostics(tool: ExifTool, path: Path) -> frozenset[str]:
@@ -69,41 +91,55 @@ def fingerprint_nef(tool: ExifTool, path: Path) -> NefFingerprint:
         "-IPTC:all",
         "-ICC_Profile:all",
         "--GPS:all",
-    )
-    detected = metadata.get("File:FileType")
-    if detected != "NEF" or path.suffix.lower() != ".nef":
-        raise ValueError("Unsupported RAW container or filename does not match its format")
-    for key in tuple(metadata):
-        if key == "SourceFile" or key.split(":")[-1] in RELOCATABLE:
-            metadata.pop(key)
-    images = tool.metadata(
-        path,
-        "-G1:4",
-        "-b",
+        "-validate",
+        "-warning",
+        "-error",
         "-api",
         "ImageHashType=SHA256",
         "-ImageDataHash",
-        "-preview:all",
     )
-    image_hash = images.pop("File:ImageDataHash", None)
+    diagnostics = _metadata_diagnostics(metadata)
+    detected = metadata.get("File:FileType")
+    if detected != "NEF" or path.suffix.lower() != ".nef":
+        raise ValueError("Unsupported RAW container or filename does not match its format")
+    image_hash = metadata.pop("File:ImageDataHash", None)
     if (
         not isinstance(image_hash, str)
         or re.fullmatch(r"[0-9a-f]{64}", image_hash) is None
         or image_hash == hashlib.sha256(b"").hexdigest()
     ):
         raise ValueError("RAW image data cannot be verified; GPS output was blocked")
+    for key in tuple(metadata):
+        if (
+            key == "SourceFile"
+            or key.split(":")[-1] in RELOCATABLE
+            or (
+                key.startswith("ExifTool:")
+                and key.split(":")[-1] in {"Validate", "Warning", "Error"}
+            )
+        ):
+            metadata.pop(key)
+    # Hash all preview bytes inside the pinned ExifTool process, avoiding the
+    # multi-megabyte base64/JSON round trip. Filter applies only to PrintConv
+    # values, so enable it solely for this preview-only request. The ordinary
+    # metadata record above retains its numeric/unconverted representation.
+    images = tool.metadata(
+        path,
+        "-G1:4",
+        "-b",
+        "-preview:all",
+        "-api",
+        "PrintConv=1",
+        "-api",
+        f"Filter={_PREVIEW_HASH_FILTER}",
+    )
     images.pop("SourceFile", None)
     previews = {}
     for key, value in images.items():
-        if not isinstance(value, str):
+        if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
             raise TypeError("RAW preview data cannot be verified")
-        data = (
-            base64.b64decode(value[7:], validate=True)
-            if value.startswith("base64:")
-            else value.encode()
-        )
-        previews[key] = hashlib.sha256(data).hexdigest()
-    return NefFingerprint(metadata, image_hash, previews, raw_diagnostics(tool, path))
+        previews[key] = value
+    return NefFingerprint(metadata, image_hash, previews, diagnostics)
 
 
 def require_tested_nef(tool: ExifTool, path: Path) -> None:
