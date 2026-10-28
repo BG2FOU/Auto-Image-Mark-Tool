@@ -223,3 +223,10 @@ JPEG 执行前再次核对实际尺寸，不符时在解码前拒绝并要求重
 最终非视觉回归 **468 passed、2 平台 skipped、1 visual deselected**；Ruff/格式、严格 mypy、pip check 通过，源码 28 类自检通过。本地 Windows 目录版、单文件版及同一单文件 EXE 的中文含空格路径均完成 28 类冻结自检。单文件 72,863,656 字节，SHA256 `f03fb4359f1c43dce03ec12d1b10dcd09c37ad3bdb54aa4e0ed48b342f177492`；目录包 982 文件、单文件归档 993 项/899 个 Python 模块，私人资源、RAW 显影库、本地 demo 与 Wine ICU 辅助库审计通过。
 
 本地测试包位于忽略目录 `build/performance-exe/0.5.1rc1/`，含单文件 EXE、测试 ZIP、可替换库目录 ZIP、许可、BUILD_INFO、SHA256SUMS 和测试说明，具体记录见[验收文档](acceptance.md)。从精确 Git 快照归档的 87 个源文件在构建后逐项未变。实际二进制的原生 Windows 用户测试仍待确认；不合并 main、不创建标签/Release、不触发正式远端发行构建。
+
+
+## Q5：Windows 用户验收通过（2026-10-28）
+
+用户明确回复“通过，将其提交推送合并发布”，确认已交付 `0.5.1rc1` 测试包通过。候选源 `04e82713694c37909e3ca911d7f45c3b2b11d01d`、测试 EXE SHA256 `f03fb4359f1c43dce03ec12d1b10dcd09c37ad3bdb54aa4e0ed48b342f177492` 和原包保持不变；未提供系统版本、缩放比例或逐项日志，不补写这些信息。
+
+正式源版本晋升 `0.5.1`，处理逻辑沿用验收候选；仅补充版本、发布文档及 Windows CI/两平台发行测试中的 `test_quick_preflight.py` 覆盖。正式源码 CI、合并/标签 SHA、构建及公开下载验证完成后追加，不将本条授权提前记为发布成功。

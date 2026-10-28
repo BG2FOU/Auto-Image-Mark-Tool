@@ -1,8 +1,8 @@
 # 照片坐标与 JPG 水印版构建与发布
 
-当前性能测试候选源版本为 `src/aim_tool/__init__.py` 的 `0.5.1rc1`；已公开正式版仍为 `v0.5.0`。候选仅先构建本地 Windows 测试 EXE，用户测试通过后才能发布，不提前合并 main 或创建发布标签。支持 JPG/JPEG 三流程、可见水印附加 DCT/FFT 频域水印，以及按文件完整性检查的 Nikon NEF 坐标副本写入；RAW 显影与水印延后。性能改动与验收见 [实施记录](performance-implementation.md)，旧 GPS-only 构建脚本和历史 Release 保留。
+当前源版本为 `src/aim_tool/__init__.py` 的 `0.5.1`，对应稳定标签 `v0.5.1`。用户已于 2026-10-28 确认 `0.5.1rc1` Windows 测试包通过，并授权提交推送、合并和发布；正式版仅晋升版本并补充 CI 覆盖及文档，沿用已验收的处理逻辑。支持 JPG/JPEG 三流程、可见水印附加 DCT/FFT 频域水印，以及按文件完整性检查的 Nikon NEF 坐标副本写入；RAW 显影与水印延后。性能改动与验收见 [实施记录](performance-implementation.md)。
 
-2026-10-26 候选增加默认快速检查、可选完整检查和 NEF 预览在固定 ExifTool 内计算完整摘要。快速模式允许坏图在逐张执行时发现，最终输出检查仍保留。用户明确要求及时提交推送，但**新 EXE 必须先交付原生 Windows 测试，确认通过之前不发布，也不触发正式远端发行构建**。本地兼容环境编译/自检和用户实机测试分别记录，不把源码 CI 或 Wine 结果写成人工验收。
+默认快速检查、可选完整检查；NEF 预览在固定 ExifTool 内计算完整摘要。快速模式允许坏图在逐张执行时发现，最终输出检查仍保留。先核验精确发布提交的源码 CI，再推送新标签，执行正式两平台构建和公开下载验证。本地兼容环境编译/自检、用户实机反馈与正式发布证据分别记录，不推断未提供的 Windows 版本或逐项测试日志。
 
 ## 固定工具链
 
@@ -25,9 +25,9 @@ Linux（Ubuntu 24.04 / amd64 基线）：
 QT_QPA_PLATFORM=offscreen .venv/bin/python scripts/build_deb.py
 ```
 
-两平台复用 `packaging/AutoImageMarkTool.spec`。Windows 适配器直接使用固定包内的 Perl 和相对 exiftool.pl/lib。路径优先使用系统代码页可无损表示的名称或现有 DOS 短路径；无短路径的中文安装目录会将未经修改的支持运行时复制到用户临时目录（必要时使用 LOCALAPPDATA），在对象释放时清理。只复制公开 ExifTool 运行时，不复制照片、字体、签名或用户设置；不依赖外部 Perl，不修改磁盘短路径设置。临时根目录也须能由系统代码页或短路径表示，否则明确提示设置可写的 ASCII TEMP，不静默继续。公共接口及 13.59 版本校验保持有效。构建脚本会运行 `--self-test-jpg --report`，从源码目录外启动实际冻结程序，清除外部 ExifTool/PYTHONPATH/Qt 插件路径，并把 PATH 限制为系统目录，使用临时自有合成字体/签名/JPG/XLSX，验证 GUI、地点保存、预览、GPS+水印、方向、ICC、拍摄日期、源哈希和清理。旧 `--self-test` GPS 接口保持不变。自测不联网，不读取用户照片。冻结自测共 27 类，包含海拔读回、批量坐标转换/列表追加、无关编辑列表警告兼容、DCT/FFT、批量勾选和拍摄时间排序。`nef_scope` 检查验证伪 NEF 拒绝、预览/水印边界和未加载 RAW 显影库；`nef_gps` 使用合成 Nikon TIFF/NEF 容器验证坐标、卫星数、日期和数据保护，不替代真实样片验收。真实 NEF 只在本地授权样片上验证；历史 Z5 试写已获用户独立软件确认，新版的 Windows RAW 属性显示尚未逐机型核验。DEB 解包后再执行同一自测。
+两平台复用 `packaging/AutoImageMarkTool.spec`。Windows 适配器直接使用固定包内的 Perl 和相对 exiftool.pl/lib。路径优先使用系统代码页可无损表示的名称或现有 DOS 短路径；无短路径的中文安装目录会将未经修改的支持运行时复制到用户临时目录（必要时使用 LOCALAPPDATA），在对象释放时清理。只复制公开 ExifTool 运行时，不复制照片、字体、签名或用户设置；不依赖外部 Perl，不修改磁盘短路径设置。临时根目录也须能由系统代码页或短路径表示，否则明确提示设置可写的 ASCII TEMP，不静默继续。公共接口及 13.59 版本校验保持有效。构建脚本会运行 `--self-test-jpg --report`，从源码目录外启动实际冻结程序，清除外部 ExifTool/PYTHONPATH/Qt 插件路径，并把 PATH 限制为系统目录，使用临时自有合成字体/签名/JPG/XLSX，验证 GUI、地点保存、预览、GPS+水印、方向、ICC、拍摄日期、源哈希和清理。旧 `--self-test` GPS 接口保持不变。自测不联网，不读取用户照片。冻结自测共 28 类，包含海拔读回、批量坐标转换/列表追加、无关编辑列表警告兼容、DCT/FFT、批量勾选和拍摄时间排序。`nef_scope` 检查验证伪 NEF 拒绝、预览/水印边界和未加载 RAW 显影库；`nef_gps` 使用合成 Nikon TIFF/NEF 容器验证坐标、卫星数、日期和数据保护，不替代真实样片验收。真实 NEF 只在本地授权样片上验证；历史 Z5 试写已获用户独立软件确认，新版的 Windows RAW 属性显示尚未逐机型核验。DEB 解包后再执行同一自测。
 
-`dist/AutoImageMarkTool/` 为目录版；Windows `dist/AutoImageMarkTool.exe` 为单文件版；本次测试候选为 `0.5.1rc1`，如另行构建 Linux DEB，对应 Debian 版本为 `0.5.1~rc1`。字体、签名必须由用户在本地设置中选择，首次启动不会自带私人素材。当前离线自检共 28 类；冻结自测不代表商用字体的人工视觉验收，也不代替独立 Windows 10 桌面交互检查。
+`dist/AutoImageMarkTool/` 为目录版；Windows `dist/AutoImageMarkTool.exe` 为单文件版；正式源版本为 `0.5.1`，Linux DEB 对应 Debian 版本为 `0.5.1`。字体、签名必须由用户在本地设置中选择，首次启动不会自带私人素材。当前离线自检共 28 类；冻结自测不代表商用字体的人工视觉验收，也不代替独立 Windows 10 桌面交互检查。
 
 rc.5 冻结自检共 23 类，在既有 19 类基础上增加 digital_defaults、dct_fft_watermark、batch_selection、capture_time_sort；实际执行 DCT/FFT 嵌入、最终 JPG 解码提取，以及排序/过滤后的批量选择操作。用户已在本次会话明确授权合并、构建与 Release，发布顺序按 docs/plan.md 第 15 节更新。源 CI、正式构建和公开下载验证分别记录；此前本地 Windows 测试包的人工反馈尚未取得，自动化验收不替代该反馈。
 
@@ -45,7 +45,7 @@ v0.5.0 包含包内 deathstar.ico、Windows EXE 多尺寸图标以及 Linux 桌�
 
 ## 已发布版本与下载验证
 
-[v0.5.0](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.5.0) 为最新正式版，源 SHA `d4269dbeb116d57e9b226cddba6ffe23b1ee5f52`，Windows 源码 CI `38587631203` 和正式流程 `38588394928` 全部成功。公开 EXE 中文路径与实际下载 DEB 的 27 类自检通过；7 份附件、两平台许可、私人资源排除、EXE 的 9 个图标图像、包内 ICO 及 Linux 桌面 PNG 均已独立验证。详见 [验收记录](acceptance.md)。
+[v0.5.0](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.5.0) 为上一正式版，源 SHA `d4269dbeb116d57e9b226cddba6ffe23b1ee5f52`，Windows 源码 CI `38587631203` 和正式流程 `38588394928` 全部成功。公开 EXE 中文路径与实际下载 DEB 的 27 类自检通过；7 份附件、两平台许可、私人资源排除、EXE 的 9 个图标图像、包内 ICO 及 Linux 桌面 PNG 均已独立验证。详见 [验收记录](acceptance.md)。
 
 [v0.4.0-rc.5](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.5) 对应源 SHA `17a5e90af5320ddabe79f31e189e1022b6823a24`；源码 Windows CI `38425453869` 和正式流程 `38426182082` 全部成功。公开 Windows EXE 中文下载路径和公开 Linux DEB 解包程序均通过 23 类离线自检。全部 7 份附件的哈希/构建身份、ZIP/DEB 私人资源排除、两平台 NumPy 许可子树已独立验证。完整证据见 [验收记录](acceptance.md)。
 
