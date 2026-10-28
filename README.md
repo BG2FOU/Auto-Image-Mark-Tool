@@ -12,7 +12,7 @@ JPG 水印与 NEF 坐标图形正式版 [v0.5.1](https://github.com/BG2FOU/Auto-
 
 Windows 双击 EXE，或解压 ZIP 后运行其中的 EXE；Linux 用 `sudo apt install ./auto-image-mark-tool_0.5.1_amd64.deb` 安装，再启动 `auto-image-mark-tool`。使用 Release 附带的 SHA256SUMS.txt 校验下载；完整许可与构建来源随附件提供。无需另装 Python 或 ExifTool，水印字体和签名由用户在本地选择。
 
-默认使用快速检查，也可选择完整检查；快速检查将完整图像/NEF 校验放到逐张实际处理，减少批次开始前的等待，坏图可能在处理到该张时才报告。用户已于 2026-10-28 确认候选 EXE 测试通过。EXE 未做 Windows 代码签名；正式构建和公开下载的独立核验结果见 [验收记录](docs/acceptance.md)。
+默认使用快速检查，也可选择完整检查；快速检查将完整图像/NEF 校验放到逐张实际处理，减少批次开始前的等待，坏图可能在处理到该张时才报告。用户已于 2026-10-28 确认候选 EXE 测试通过。源码 CI、两平台正式构建、公开附件校验与两平台 28 类冻结自检均通过。EXE 未做 Windows 代码签名；完整证据见 [验收记录](docs/acceptance.md)。
 
 ## 当前功能
 

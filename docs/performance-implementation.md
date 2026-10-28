@@ -230,3 +230,10 @@ JPEG 执行前再次核对实际尺寸，不符时在解码前拒绝并要求重
 用户明确回复“通过，将其提交推送合并发布”，确认已交付 `0.5.1rc1` 测试包通过。候选源 `04e82713694c37909e3ca911d7f45c3b2b11d01d`、测试 EXE SHA256 `f03fb4359f1c43dce03ec12d1b10dcd09c37ad3bdb54aa4e0ed48b342f177492` 和原包保持不变；未提供系统版本、缩放比例或逐项日志，不补写这些信息。
 
 正式源版本晋升 `0.5.1`，处理逻辑沿用验收候选；仅补充版本、发布文档及 Windows CI/两平台发行测试中的 `test_quick_preflight.py` 覆盖。正式源码 CI、合并/标签 SHA、构建及公开下载验证完成后追加，不将本条授权提前记为发布成功。
+
+
+### Q5 正式发布闭环（2026-10-28）
+
+`0.5.1rc1` 用户测试通过后，正式版本晋升为 `0.5.1`，应用处理逻辑未再修改。发布源 `075e4b7ed00d63e0adf2a00420395e3031e55350` 已推送并快进合并 main，标签 `v0.5.1` 指向同一提交。正式版本本地回归 468 passed、2 平台 skipped、1 visual deselected，静态/依赖检查与 28 类源码自检通过。
+
+精确源码 CI [40624683680](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/40624683680) 和正式发行流程 [40625401795](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/40625401795) 全部成功。[v0.5.1](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.5.1) 已公开为最新稳定版；7 份公开附件下载后的哈希/来源/许可/私人资源排除、原生 Windows 中文路径 EXE 及实际下载 DEB 的 28 类冻结自检均通过。证据、哈希及验收边界见[验收记录](acceptance.md)。Q0–Q3 和 Q5 闭环；Q4 额外复杂候选继续暂缓，不将未测得的 Windows 定量收益写为结论。

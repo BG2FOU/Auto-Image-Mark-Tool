@@ -659,3 +659,20 @@ rc.5 用 viewport 实时尺寸计算字号，滚动条出现后挤窄区域，�
 用户明确回复“通过，将其提交推送合并发布”，确认已交付 `0.5.1rc1` 测试包通过。候选源 `04e82713694c37909e3ca911d7f45c3b2b11d01d`、测试 EXE SHA256 `f03fb4359f1c43dce03ec12d1b10dcd09c37ad3bdb54aa4e0ed48b342f177492` 和原包保持不变；未提供系统版本、缩放比例或逐项日志，不补写这些信息。
 
 正式源版本晋升 `0.5.1`，处理逻辑沿用验收候选；仅补充版本、发布文档及 Windows CI/两平台发行测试中的 `test_quick_preflight.py` 覆盖。正式源码 CI、合并/标签 SHA、构建及公开下载验证完成后追加，不将本条授权提前记为发布成功。
+
+
+### v0.5.1 正式发布与公开下载验证
+
+发布准备提交 `075e4b7ed00d63e0adf2a00420395e3031e55350` 已推送性能分支、快进合并并推送 main，远端两分支 SHA 一致。新建的稳定标签 `v0.5.1` 解引用为同一提交；历史标签及旧公开附件保留。与已验收候选相比，应用源码仅将 `0.5.1rc1` 晋升 `0.5.1`，未再改动处理逻辑。
+
+- 本地正式版本全量非 visual 回归 **468 passed、2 Windows 平台 skipped、1 visual deselected**；Ruff/格式（114 文件）、严格 mypy（46 模块）、pip check 和 28 类源码自检全部通过。检查结果保存在本地忽略目录 `build/published-v0.5.1/`。
+- 精确发布提交的 Windows 源码 CI [40624683680](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/40624683680) 全部通过：306 单元、50 GUI、70 集成测试通过（1 visual deselected）；包含新增快速预检回归。源码 CI 成功后才创建并推送稳定标签。
+- 正式流程 [40625401795](https://github.com/BG2FOU/Auto-Image-Mark-Tool/actions/runs/40625401795) 的 prepare、windows、linux、assemble、publish、verify-published-windows 全部成功。Windows 目录/单文件、中文含空格路径和 Linux DEB 解包应用均完成 28 类冻结自检；最后的只读 Windows job 重新下载公开 EXE，验证 SHA256/源身份并在中文下载路径运行，同样 28 类通过（version=0.5.1、frozen=true、ok=true、ExifTool=13.59）。
+
+[v0.5.1](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.5.1) 于北京时间 **2026-10-28 11:24:06** 正式公开，isDraft=false、isPrerelease=false，GitHub latest 指向该版本。7 份公开附件全部下载至 `build/published-v0.5.1/`，在精确标签源上执行 `scripts/check_release.py --tag v0.5.1 --dist build/published-v0.5.1` 通过：全部载荷哈希、附件集合、版本/源提交、Python 3.12.3、PyInstaller 6.22.3、ExifTool 13.59 与公开图标 SHA256 一致。
+
+独立审计 Windows ZIP 1029 文件、Linux DEB 1006 文件及三份可执行程序模块表通过。`LICENSES.zip` 584 文件与两平台包内许可逐文件一致，9 份固定来源归档及对应许可文本、两平台 NumPy 各 17 份子许可、嵌入 Perl 许可 ZIP 均通过；ZIP CRC、ICO 与 9 个 PE 图标图像、Linux 桌面 PNG 通过。未发现私人图片/字体/签名/已知个人配置、本地 demo、rawpy/libraw 或本地主机已知 Wine 辅助 DLL；详细库存与审计边界见本地 `public-audit.json`。
+
+实际下载的 DEB 解包应用再次通过 28 类离线自检，与公开 Windows 下载自检的报告字段一致。公开 EXE 为 **76,640,036 字节**，SHA256 **`776a038ca53cb8eb0db590003cbb189b2e418219a3217bfa7eff994d23df4ebc`**；ZIP 为 77,018,346 字节，DEB 为 82,465,462 字节。报告和完整源码/发行日志留在本地忽略目录，不提交附件、私人素材或测试包。
+
+用户验收反馈仅确认此次候选通过，不推断未提供的 Windows 版本、DPI 或逐项操作记录；性能数字仍限于既有 Linux/合成 JPG/两份授权 NEF 测量范围。EXE 未签名，NEF 显影/水印与 Q4 额外复杂快照继续暂缓。本节在全部发布与下载验证后另行提交；后续文档提交不改变 v0.5.1 标签、发布源或附件。

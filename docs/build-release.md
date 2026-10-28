@@ -45,6 +45,8 @@ v0.5.0 包含包内 deathstar.ico、Windows EXE 多尺寸图标以及 Linux 桌�
 
 ## 已发布版本与下载验证
 
+[v0.5.1](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.5.1) 为最新正式版，源 SHA `075e4b7ed00d63e0adf2a00420395e3031e55350`。用户已确认候选 EXE 测试通过；精确源码 CI `40624683680`、正式流程 `40625401795` 全部成功。7 份公开附件下载校验、许可与资源审计、原生 Windows 公开 EXE 中文路径及实际下载 DEB 的 28 类自检均通过。完整证据见 [验收记录](acceptance.md)。
+
 [v0.5.0](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.5.0) 为上一正式版，源 SHA `d4269dbeb116d57e9b226cddba6ffe23b1ee5f52`，Windows 源码 CI `38587631203` 和正式流程 `38588394928` 全部成功。公开 EXE 中文路径与实际下载 DEB 的 27 类自检通过；7 份附件、两平台许可、私人资源排除、EXE 的 9 个图标图像、包内 ICO 及 Linux 桌面 PNG 均已独立验证。详见 [验收记录](acceptance.md)。
 
 [v0.4.0-rc.5](https://github.com/BG2FOU/Auto-Image-Mark-Tool/releases/tag/v0.4.0-rc.5) 对应源 SHA `17a5e90af5320ddabe79f31e189e1022b6823a24`；源码 Windows CI `38425453869` 和正式流程 `38426182082` 全部成功。公开 Windows EXE 中文下载路径和公开 Linux DEB 解包程序均通过 23 类离线自检。全部 7 份附件的哈希/构建身份、ZIP/DEB 私人资源排除、两平台 NumPy 许可子树已独立验证。完整证据见 [验收记录](acceptance.md)。
